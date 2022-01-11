@@ -17,19 +17,24 @@ result/ directory. datasets contains all datasets
 
 The framework includes LL version of some of the recent VGAE models.  To run each model you only need to set the encoder and decoder type. Below are some of the main implemented VGAE models and corresponding commands.
 
-### DGLFRM
+**DGLFRM**
+
 python VGAE_FrameWork.2.1.py  -decoder_type "MultiLatetnt_SBM_decoder " -encoder_type "mixture_of_GCNs" 
 
-### GRAPHITE
+**GRAPHITE**
+
 python VGAE_FrameWork.2.1.py   -decoder_type "graphitDecoder" -encoder_type "mixture_of_GCNs"
 
-### VGAE
+**VGAE**
+
 python VGAE_FrameWork.2.1.py -decoder_type "InnerDot" -encoder_type "mixture_of_GCNs" 
 
-### VGAE*
+**VGAE***
+
 python VGAE_FrameWork.2.1.py  -decoder_type "multi_inner_product " -encoder_type "mixture_of_GCNs" 
 
-### S-VGAE
+**S-VGAE**
+
 python VGAE_FrameWork.2.1.py   -decoder_type "InnerDot" -encoder_type "mixture_of_sGCNs" 
 
 **VGNAE**
