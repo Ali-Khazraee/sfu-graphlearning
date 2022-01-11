@@ -32,7 +32,7 @@ python VGAE_FrameWork.2.1.py  -decoder_type "multi_inner_product " -encoder_type
 ### S-VGAE
 python VGAE_FrameWork.2.1.py   -decoder_type "InnerDot" -encoder_type "mixture_of_sGCNs" 
 
-** VGNAE **
+**VGNAE**
 python VGAE_FrameWork.2.1.py  -decoder_type "InnerDot" -encoder_type "mixture_of_NGCNs" 
 
 
