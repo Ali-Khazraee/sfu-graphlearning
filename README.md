@@ -5,8 +5,7 @@ Workshop Vaersion is accepted at Deep Learning on Graphs: Methods and Applicatio
 
 # Code overview
 
-The implementation is provided at https://github.com/
-kiarashza/LLGF.git. The script main.py includes the training
+The script main.py includes the training
 pipeline. models.py contains the graph VAE with different
 Encoder and Decoder architecture implementations. All the
 Python packages used in our experiments are provided
