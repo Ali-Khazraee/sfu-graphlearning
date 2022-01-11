@@ -42,7 +42,7 @@ python VGAE_FrameWork.2.1.py   -decoder_type "InnerDot" -encoder_type "mixture_o
 python VGAE_FrameWork.2.1.py  -decoder_type "InnerDot" -encoder_type "mixture_of_NGCNs" 
 
 
-## Sampled Dyad representation from GRAN
+## Sampled Dyad representation
 
 ## Cite
 Please cite our paper if you use this code in your research work.
