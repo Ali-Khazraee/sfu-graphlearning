@@ -43,6 +43,15 @@ python VGAE_FrameWork.2.1.py  -decoder_type "InnerDot" -encoder_type "mixture_of
 
 
 ## Sampled Dyad representation
+Weuse method-LL to denote the baseline method extended by adding latent layers.  In figures, colors show the ground truth dyad type; blue
+= Non-adjacent node pairs, green and red = Adjacent node pairs
+with one of 2 edge types. We map learned dyad representations to
+a 2-D plane with t-SNE projection. Right: Baseline uses 2𝑑′ node
+concatenation representation (here 2𝑑′ =128). Left: 𝐿𝐿𝐺𝐹 uses the
+novel L dimensional dyad representation, 𝐿 =6 for ACM.1 and
+DBLP.1, and 8 for IMDB.1. For the 𝐿𝐿𝐺𝐹 low dimensional dyad
+representation, we observe a clear correlation with the ground truth
+edge types.
 ![This is dyad representation](https://github.com/kiarashza/LLGF/blob/master/result/DyadRepresentation/DyadVis.png)
 
 ## Cite
