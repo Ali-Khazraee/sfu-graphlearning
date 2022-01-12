@@ -488,9 +488,9 @@ def featureVisualizer(features, node_color,node_label, filename="", lr = 10,per 
         cmap="jet",
     alpha = 0.7,
     )
-    plt.legend(handles=scatter.legend_elements()[0], labels=["Non-adjacent","Paper-Author","Paper-Subject"], fontsize="x-large", loc='upper right')
+    # plt.legend(handles=scatter.legend_elements()[0], labels=legend_label, fontsize="x-large", loc='upper right')
     if legend_label!=None:
-        plt.legend(handles=scatter.legend_elements()[0], labels=legend_label, fontsize="x-large", loc='upper right')
+        plt.legend(handles=scatter.legend_elements()[0], labels=legend_label, fontsize=22, loc='upper right')
 
 
     # plt.show()

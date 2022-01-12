@@ -27,27 +27,27 @@ torch._set_deterministic(True)
 # modelpath
 parser = argparse.ArgumentParser(description='VGAE Framework')
 
-parser.add_argument('-e', dest="epoch_number", type=int, default=300, help="Number of Epochs")
+parser.add_argument('-e', dest="epoch_number", type=int, default=200, help="Number of Epochs")
 parser.add_argument('-v', dest="Vis_step", type=int, default=180, help="model learning rate")
-parser.add_argument('-lr', dest="lr", type=float, default=0.005, help="number of epoch at which the error-plot is visualized and updated")
-parser.add_argument('-dataset', dest="dataset", default="cora",
+parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
+parser.add_argument('-dataset', dest="dataset", default="ACM",
                     help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM")
 parser.add_argument('-hemogenize', dest="hemogenize", default=True, help="either withhold the layers (edges types) during training or not")
-parser.add_argument('-NofRels', dest="num_of_relations", type=int, default=4, help="Number of latent layers (L)")
+parser.add_argument('-NofRels', dest="num_of_relations", type=int, default=1, help="Number of latent layers (L)")
 parser.add_argument('-NofCom', dest="num_of_comunities",type=int, default=64,
                     help="Dimention of Z, i.e len(Z[0]), in the bottleNEck")
 parser.add_argument('-encoder_layers', dest="encoder_layers", default="64", type=str,
                     help="a list in which each element determine the gcn size; Note: the last layer size is determine with -NofCom")
 parser.add_argument('-s', dest="save_embeddings_to_file", default=False, help="save the latent vector of nodes")
 parser.add_argument('-f', dest="use_feature", default=True, help="either use features or identity matrix")
-parser.add_argument('-DR', dest="DropOut_rate", default=0, help="drop out rate")
-parser.add_argument('-BN', dest="batch_norm", default=False,
+parser.add_argument('-DR', dest="DropOut_rate", default=.3, help="drop out rate")
+parser.add_argument('-BN', dest="batch_norm", default=True,
                     help="either use batch norm at decoder; only apply in multi relational decoders")
 parser.add_argument('-Split', dest="split_the_data_to_train_test", default=True,
                     help="either use features or identity matrix; for synthasis data default is False")
-parser.add_argument('-decoder_type', dest="decoder_type", default="InnerDot",
+parser.add_argument('-decoder_type', dest="decoder_type", default="MultiLatetnt_SBM_decoder",
                     help="the decoder type, Either SBM , InnerDot , MultiLatetnt_SBM_decoder, MultiLatentLayerGraphit, multi_inner_product, ")
-parser.add_argument('-encoder_type', dest="encoder_type", default="mixture_of_NGCNs",
+parser.add_argument('-encoder_type', dest="encoder_type", default="mixture_of_GCNs",
                     help="the encoder type, Either ,mixture_of_GCNs, mixture_of_sRGCNs,mixture_of_sGCNs, mixture_of_GatedGCNs , Multi_GCN or Edge_GCN ")
 parser.add_argument('-edge_type_visulizer', dest="edge_type_visulizer", default=True,
                     help="either visualize the inferenced edge_type for each node or not; only possibel for mixture of decoders model inclused MapedInnerProduct_SBM and multi_inner_product")
@@ -459,6 +459,10 @@ if edge_labels != None and edge_type_visulizer == True and (
     rndm_indec = list(range(len(label)))
     random.shuffle(rndm_indec)
     resized = rndm_indec[:int(len(rndm_indec)*.10)]
+    if dataset=="IMDB":
+        Legend_labl = ["Non-adjacent", "Actor-Movie", "Director-Movie"]
+    else:
+        Legend_labl = ["Non-adjacent", "Paper-Author", "Paper-Subject"]
     if num_of_relations==1:
 
         plotter.featureVisualizer( [pair_features[i] for i in resized], [label[i] for i in resized], [label[i] for i in resized], filename = "pairVisulizer"+ fname, per = 10,legend_label=Legend_labl)
