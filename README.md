@@ -43,6 +43,7 @@ python VGAE_FrameWork.2.1.py  -decoder_type "InnerDot" -encoder_type "mixture_of
 
 
 ## Sampled Dyad representation
+![This is dyad representation](https://github.com/kiarashza/LLGF/blob/master/result/DyadRepresentation/NodeFeaturepairVisulizerACM1MultiLatetnt_SBM_decoder_tsne_graph.png)
 
 ## Cite
 Please cite our paper if you use this code in your research work.
