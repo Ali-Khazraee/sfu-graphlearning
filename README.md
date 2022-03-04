@@ -1,7 +1,6 @@
 # LLGF
 
 This is the official PyTorch implementation of Latent Layer Generative Framework. 
-Workshop Vaersion is accepted at Deep Learning on Graphs: Methods and Applications (DLG-AAAI’22) and the long version is submitted to kdd.
 
 ## Code overview
 
