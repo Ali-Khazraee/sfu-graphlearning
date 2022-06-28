@@ -4,7 +4,7 @@ This is the official PyTorch implementation of "Deep Learning of Latent Edge Typ
 
 ## Code overview
 
-The script main.py includes the training
+The script VGAE_FrameWork.2.1.py includes the training
 pipeline. models.py contains the graph VAE with different
 Encoder and Decoder architecture implementations. All the
 Python packages used in our experiments are provided
@@ -14,7 +14,7 @@ result/ directory. datasets contains all datasets
 
 ## Run Demos
 
-The framework includes LL version of some of the recent VGAE models.  To run each model you only need to set the encoder and decoder type. Below are some of the main implemented VGAE models and corresponding commands.
+The framework includes LL version of some of the recent VGAE models.  To run each model you only need to set the encoder and decoder type. Below are some of the VGAE_FrameWork.2.1.py implemented VGAE models and corresponding commands.
 
 **DGLFRM**
 
