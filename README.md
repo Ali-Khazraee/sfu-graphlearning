@@ -1,6 +1,6 @@
 # LLGF
 
-This is the official PyTorch implementation of Latent Layer Generative Framework. 
+This is the official PyTorch implementation of "Deep Learning of Latent Edge Types from Relational Data". 
 
 ## Code overview
 
