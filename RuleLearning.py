@@ -4,7 +4,7 @@ start_time = time.monotonic()
 import dgl
 import classification as CL
 from input_data import load_data
-from mask_test_edges import mask_test_edges, roc_auc_estimator
+from mask_test_edges import mask_test_edges_new, roc_auc_estimator
 import plotter
 import argparse
 import networkx as nx
@@ -19,7 +19,11 @@ torch.backends.cudnn.enabled = False
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 
-torch._set_deterministic(True)
+
+
+
+
+# torch._set_deterministic(True)
 
 # batch_norm
 # edge_Type
@@ -216,7 +220,7 @@ if use_feature == False:
 
 # make train, test and val according to kipf original implementation
 if split_the_data_to_train_test == True:
-    adj_train, _, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative, train_edges_positive, train_edges_negative, ignore_edges_inx, val_edge_idx = mask_test_edges(
+    adj_train, _, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative, train_edges_positive, train_edges_negative, ignore_edges_inx, val_edge_idx = mask_test_edges_new(
         original_adj)
     ignore_dges = []
 else:

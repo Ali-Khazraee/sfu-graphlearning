@@ -22,7 +22,7 @@ torch.backends.cudnn.enabled = False
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 
-torch._set_deterministic(True)
+# torch._set_deterministic(True)
 import pickle as pickle
 import scipy.sparse
 
