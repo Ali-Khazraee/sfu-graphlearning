@@ -94,7 +94,7 @@ synthesis_graphs = {"grid", "community", "lobster", "ego"}
 # ************************************************************
 # VGAE frame_work
 class GVAE_FrameWork(torch.nn.Module):
-    def __init__(self, encoder, decoder):
+    def __init__(self, encoder, decoder, node_feat_decoder):
         """
         :param latent_dim: the dimention of each embedded node; |z| or len(z)
         :param decoder:
@@ -106,6 +106,7 @@ class GVAE_FrameWork(torch.nn.Module):
 
         self.decoder = decoder
         self.encoder = encoder
+        self.node_feat_decoder = node_feat_decoder
 
 
         # self.mlp_decoder = torch.nn.ModuleList([edge_mlp(2*latent_space_dim,[16,8,1]) for i in range(self.numb_of_rel)])
@@ -113,7 +114,8 @@ class GVAE_FrameWork(torch.nn.Module):
     def forward(self, adj, x):
         z, m_z, std_z = self.inference(adj, x)
         generated_adj = self.generator(z,x)
-        return std_z, m_z, z, generated_adj
+        generated_x = self.feat_generator(z)
+        return std_z, m_z, z, generated_adj, generated_x
 
     # inference model q(z|adj,x)
     def inference(self, adj, x):
@@ -124,6 +126,10 @@ class GVAE_FrameWork(torch.nn.Module):
     def generator(self, z, x):
         adj = self.decoder(z)
         return adj
+    
+    def feat_generator(self,z):
+        x = self.node_feat_decoder(z)
+        return x
 
     def reparameterize(self, mean, std):
         eps = torch.randn_like(std)
@@ -131,7 +137,7 @@ class GVAE_FrameWork(torch.nn.Module):
 # ************************************************************
 
 # objective Function
-def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm,
+def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred, x_true,
                  indexes_to_ignore=None, val_edge_idx=None):
     """
 
@@ -166,10 +172,10 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm,
 
     #KL divergence
     kl_loss = (-0.5 / num_nodes) * torch.mean(torch.sum(1 + 2 * torch.log(std_z) - mean_z.pow(2) - (std_z).pow(2), dim=1))
-
+    feat_loss = torch.nn.functional.mse_loss(x_pred, x_true)    
 
     acc = (torch.sigmoid(pred).round() == labels).sum() / float(pred.shape[0] * pred.shape[1]) # accuracy on the train data
-    return kl_loss, reconstruction_loss, acc, val_recons_loss
+    return kl_loss, reconstruction_loss, feat_loss , acc, val_recons_loss
 
 
 # ============================================================
@@ -294,9 +300,11 @@ elif decoder == "InnerProductDecoder": # Kipf
 else:
     raise Exception("Sorry, this Decoder is not Impemented; check the input args")
 
+feature_decoder_model = MLPDecoder(num_of_comunities, features.shape[1])
 
 model = GVAE_FrameWork(encoder=encoder_model,
-                       decoder=decoder_model)  # parameter namimng, it should be dimentionality of distriburion
+                       decoder=decoder_model,
+                       node_feat_decoder = feature_decoder_model)  # parameter namimng, it should be dimentionality of distriburion
 #-----------------------------------------
 #-----------------------------------------
 optimizer = torch.optim.Adam(model.parameters(), lr)
@@ -316,16 +324,17 @@ for epoch in range(epoch_number):
     model.train()
 
     # forward propagation by using all nodes
-    std_z, m_z, z, reconstructed_adj = model(graph_dgl, features)
+    std_z, m_z, z, reconstructed_adj, reconstructed_x = model(graph_dgl, features)
 
     # compute loss and accuracy
-    z_kl, reconstruction_loss, acc, val_recons_loss = OptimizerVAE(reconstructed_adj,
+    z_kl, reconstruction_loss, feat_loss, acc, val_recons_loss = OptimizerVAE(reconstructed_adj,
                                                                    adj_train ,
                                                                    std_z, m_z, num_nodes, pos_wight, norm,
+                                                                   reconstructed_x, features,
                                                                     ignore_edges_inx,
                                                                    val_edge_idx)
 
-    loss = reconstruction_loss + z_kl
+    loss = reconstruction_loss + z_kl + feat_loss
 
     reconstructed_adj = torch.sigmoid(reconstructed_adj).detach().numpy()
     model.train()
