@@ -7,8 +7,10 @@ from input_data import load_data
 from mask_test_edges import mask_test_edges, roc_auc_estimator
 import plotter
 import argparse
+from utils import *
+import utils
 import networkx as nx
-from models import *
+from AEmodels import *
 
 np.random.seed(0)
 random.seed(0)
@@ -27,18 +29,18 @@ torch._set_deterministic(True)
 # modelpath
 parser = argparse.ArgumentParser(description='VGAE Framework')
 
-parser.add_argument('-e', dest="epoch_number", type=int, default=200, help="Number of Epochs")
-parser.add_argument('-v', dest="Vis_step", type=int, default=180, help="model learning rate")
+parser.add_argument('-e', dest="epoch_number", type=int, default=101, help="Number of Epochs")
+parser.add_argument('-v', dest="Vis_step", type=int, default=20, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
 parser.add_argument('-dataset', dest="dataset", default="ACM",
                     help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM")
-parser.add_argument('-hemogenize', dest="hemogenize", default=False, help="either withhold the layers (edges types) during training or not")
+parser.add_argument('-hemogenize', dest="hemogenize", default=True, help="either withhold the layers (edges types) during training or not")
 parser.add_argument('-NofCom', dest="num_of_comunities",type=int, default=64,
                     help="Dimention of Z, i.e len(Z[0]), in the bottleNEck")
 parser.add_argument('-encoder_layers', dest="encoder_layers", default="64", type=str,
                     help="a list in which each element determine the gcn size; Note: the last layer size is determine with -NofCom")
 parser.add_argument('-f', dest="use_feature", default=True, help="either use features or identity matrix")
-parser.add_argument('-DR', dest="DropOut_rate", default=.3, help="drop out rate")
+parser.add_argument('-DR', dest="DropOut_rate", default=0, help="drop out rate")
 parser.add_argument('-BN', dest="batch_norm", default=True,
                     help="either use batch norm at decoder; only apply in multi relational decoders")
 parser.add_argument('-Split', dest="split_the_data_to_train_test", default=True,
@@ -150,7 +152,7 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm,
         if val_edge_idx:
             val_recons_loss = reconstruction_loss[:, val_edge_idx[0], val_edge_idx[1]].mean()
 
-        reconstruction_loss[:, val_edge_idx[0], val_edge_idx[1]]= 0  # masking edges
+        reconstruction_loss[:,val_edge_idx[0], val_edge_idx[1]]= 0  # masking edges
 
         reconstruction_loss = reconstruction_loss.mean()
 
@@ -188,26 +190,27 @@ elemnt = min(original_adj.shape[-1], subgraph_size)
 indexes = list(range(original_adj.shape[-1]))
 
 #-----------------------------------------
-# adj , feature matrix and  node labels  permutaion
-np.random.shuffle(indexes)
-indexes = indexes[:elemnt]
-original_adj = original_adj[indexes, :]
-original_adj = original_adj[:, indexes]
-
-features = features[indexes]
-
-if synthetic != True:
-    if node_label != None:
-        node_label = [node_label[i] for i in indexes]
-    if edge_labels != None:
-        edge_labels = edge_labels[indexes, :]
-        edge_labels = edge_labels[:, indexes]
-    if circles != None:
-        shuffles_cir = {}
-        for ego_node, circule_lists in circles.items():
-            shuffles_cir[indexes.index(ego_node)] = [[indexes.index(x) for x in circule_list] for circule_list in
-                                                     circule_lists]
-        circles = shuffles_cir
+# # adj , feature matrix and  node labels  permutaion
+# np.random.shuffle(indexes)
+# indexes = indexes[:elemnt]
+# original_adj = original_adj[indexes, :]
+# original_adj = original_adj[:, indexes]
+#
+# features = features[indexes]
+#
+# if synthetic != True:
+#     if node_label != None:
+#         node_label = [node_label[i] for i in indexes]
+#     if edge_labels != None:
+#         edge_labels = edge_labels[indexes, :]
+#         edge_labels = edge_labels[:, indexes]
+#     if circles != None:
+#         shuffles_cir = {}
+#         for ego_node, circule_lists in circles.items():
+#             shuffles_cir[indexes.index(ego_node)] = [[indexes.index(x) for x in circule_list] for circule_list in
+#                                                      circule_lists]
+#         circles = shuffles_cir
+#-----------------------------------------
 
 # instead of X used I if the switch is on
 if use_feature == False:
@@ -230,17 +233,18 @@ pltr = plotter.Plotter(functions=["loss",  "Accuracy", "Recons Loss", "KL", "AUC
 
 num_obs = 1 #number of relateion; default is hemogenous dataset with one type of edge
 if hemogenized != True:
-    edge_relType = edge_labels.multiply(adj_train)
-    rel_type = np.unique(edge_relType.data)
+    edge_relType_train = edge_labels.multiply(adj_train)
+    rel_type = np.unique(edge_labels.data)
     num_obs = len(rel_type) # number of relateion; heterougenous setting
     # edge_relType = edge_relType + sp.eye(adj_train.shape[-1]) * (len(np.unique(edge_relType.data)) + 1)
     graph_dgl = []
 
     train_matrix =[]
     for rel_num in rel_type:
-        tm_mtrix = csr_matrix(edge_relType.shape)
-        tm_mtrix[edge_relType == (rel_num)] = 1
-        train_matrix.append(tm_mtrix.todense())
+        tm_mtrix = csr_matrix(edge_relType_train.shape)
+        tm_mtrix[edge_relType_train == (rel_num)] = 1
+        tr_matrix = tm_mtrix + sp.eye(adj_train.shape[-1])
+        train_matrix.append(tr_matrix.todense())
 
         graph_dgl.append(dgl.graph((list(tm_mtrix.nonzero()[0]), list(tm_mtrix.nonzero()[1])),num_nodes=adj_train.shape[0]))
 
@@ -250,11 +254,16 @@ if hemogenized != True:
     graph_dgl.append(
         dgl.graph((list(range(adj_train.shape[-1])), list(range(adj_train.shape[-1]))), num_nodes=adj_train.shape[-1]))
 
+
+    categorized_val_edges_pos, categorized_val_edges_neg = categorize(val_edges_poitive,val_edges_negative, edge_labels)
     # graph_dgl.append(dgl.from_scipy(adj_train))
 else:
     adj_train = adj_train + sp.eye(adj_train.shape[0])  # the library does not add self-loops
     graph_dgl = dgl.from_scipy(adj_train)
     adj_train = torch.tensor(adj_train.todense())  #Todo: use sparse matix
+    adj_train = torch.unsqueeze(adj_train,0)
+    categorized_val_edges_pos = {1:val_edges_poitive}
+    categorized_val_edges_neg= {1:val_edges_negative}
 
 
 
@@ -312,62 +321,33 @@ for epoch in range(epoch_number):
     model.train()
 
     # forward propagation by using all nodes
-    std_z, m_z, z, reconstructed_adj = model(graph_dgl, features)
+    std_z, m_z, z, reconstructed_adj_logit = model(graph_dgl, features)
 
     # compute loss and accuracy
-    z_kl, reconstruction_loss, acc, val_recons_loss = OptimizerVAE(reconstructed_adj,
-                                                                   adj_train ,
-                                                                   std_z, m_z, num_nodes, pos_wight, norm,
-                                                                    ignore_edges_inx,
-                                                                   val_edge_idx)
+    z_kl, reconstruction_loss, acc, val_recons_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm, ignore_edges_inx, val_edge_idx)
 
-    loss = reconstruction_loss + z_kl
-
-    reconstructed_adj = torch.sigmoid(reconstructed_adj).detach().numpy()
-    model.train()
+    loss = reconstruction_loss #+ z_kl
 
     # backward propagation
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
 
-    model.eval()
-
-    # TODO: extend and modify the evaluation function; cal confusion matrix, AP and AUC for each relation type
-    # if split_the_data_to_train_test == True:
-    #     val_auc, val_acc, val_ap, val_conf = roc_auc_estimator(val_edges_poitive, val_edges_negative,
-    #                                                     reconstructed_adj, original_adj)
-    #
-    #     # keep the history to plot
-    #     pltr.add_values(epoch, [loss.item(), train_acc,  reconstruction_loss.item(), z_kl, train_auc],
-    #                     [None, val_acc, val_recons_loss.item(),None, val_auc  # , val_ap
-    #                         ], redraw=False)  # ["Accuracy", "Loss", "AUC", "AP"]
-    # else:
-    #     # keep the history to plot
-    #     pltr.add_values(epoch, [acc, loss.item(), None  # , None
-    #                             ],
-    #                     [None, None, None  # , None
-    #                      ], redraw=False)  # ["Accuracy", "loss", "AUC", "AP"])
-    #
-    #
-    #
-    # # Ploting the recinstructed Graph
-    # if epoch % visulizer_step == 0:
-    #     pltr.redraw()
-    #     print("Val conf:", )
-    #     print(val_conf, )
-    #     print("Train Conf:")
-    #     print(train_conf)
-
-
-
+    #-------------------------------------------
+    # batch detail
     # print some metrics
-    print("Epoch: {:03d} | Loss: {:05f} | Reconstruction_loss: {:05f} | z_kl_loss: {:05f} | Accuracy: {:03f}".format(
-        epoch + 1, loss.item(), reconstruction_loss.item(), z_kl.item(), acc))
-    # if split_the_data_to_train_test == True:
-    #     print("Val_acc: {:5f} | Val_AUC: {:5f} | Val_AP: {:5f}".format(val_acc, val_auc, val_ap))
+    print("Epoch: {:03d} | Loss: {:05f} | Reconstruction_loss: {:05f} | z_kl_loss: {:05f}".format(
+        epoch + 1, loss.item(), reconstruction_loss.item(), z_kl.item()),"Acuuracy: {:05f} ".format(acc))
+    #------------------------------------------
 
-# ------------------------------------------
+    # Evaluate the model on the validation and plot the loss at every visulizer_step
+    if epoch % visulizer_step == 0:
+        # plotter.redraw()
+        model.eval()
+        reconstructed_adj = torch.sigmoid(reconstructed_adj_logit)
+        utils.Link_prection_eval(categorized_val_edges_pos, categorized_val_edges_neg ,
+                                                            reconstructed_adj, edge_labels)
+        model.train()
 
 
 

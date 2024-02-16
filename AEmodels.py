@@ -6,7 +6,7 @@ start_time = time.monotonic()
 import torch.nn.functional as F
 from dgl.nn.pytorch import GraphConv as GraphConv
 from collections import *
-from util import *
+from moldels import *
 from scipy.sparse import csr_matrix
 from visualization import *
 import torch.nn as nn
@@ -148,24 +148,25 @@ class RGCN_Encoder(torch.nn.Module):
         self.RGCNs = RGCN(in_feature, num_relation, layers, DropOut_rate)
 
         self.q_z_mean = RGCN_layer(layers[-1] , latent_dim,num_relation)
-        self.q_z_std = RGCN_layer(layers[-1] , 1,num_relation)
+        self.q_z_std = RGCN_layer(layers[-1] , latent_dim,num_relation)
 
     def forward(self, adj, x, edge_type=None):
 
         Z = self.RGCNs(adj, x)
 
         m_q_z = self.q_z_mean(adj, Z)
-        m_q_z = m_q_z / (.0001+m_q_z.norm(dim=-1, keepdim=True))
+        # m_q_z = m_q_z / (.0001+m_q_z.norm(dim=-1, keepdim=True))
 
         # the `+ 1` prevent collapsing behaviors
-        std_q_z = F.softplus(self.q_z_std( adj,Z)) + 1
+        # std_q_z = F.softplus(self.q_z_std( adj,Z)) + 1
+        std_q_z = torch.relu(self.q_z_std(adj, Z)) + .0001
 
         z = self.reparameterize(m_q_z, std_q_z)
         return z, m_q_z, std_q_z,
 
     def reparameterize(self, mean, std):
-        q_z = VonMisesFisher(mean, std)
-        return q_z.rsample()
+        eps = torch.randn_like(std)
+        return eps.mul(std).add(mean)
 
 
 
@@ -238,7 +239,7 @@ class InnerProductDecoder(torch.nn.Module):
 
     def forward(self, z):
         adj = torch.mm(z, z.t())
-        return adj
+        return torch.unsqueeze(adj,0)
 
 # ------------------------------------------------------------------
 class MapedInnerProductDecoder(torch.nn.Module):
