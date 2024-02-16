@@ -55,7 +55,7 @@ parser.add_argument('-encoder_type', dest="encoder_type", default="RGCN_Encoder"
                     help="the encoder type:GCN_Encoder, RGCN_Encoder")
 parser.add_argument('-num_node', dest="num_node", default=-1, type=str,
                     help="the size of subgraph which is sampled; -1 means use the whole graph; I added this feature to enable us to train on a small subset of graph to speed up Dev")
-
+parser.add_argument("-downstreamTasks", dest="downstreamTasks" , default= {"nodeClassification","linkPrediction"}, help="a ser of downsteam tasks", nargs='+',)
 
 
 
@@ -68,7 +68,7 @@ visulizer_step = args.Vis_step
 epoch_number = args.epoch_number
 lr = args.lr
 hemogenized = args.hemogenize
-
+downstreamTasks = args.downstreamTasks
 
 num_of_comunities = args.num_of_comunities  # number of comunities;
 DropOut_rate = args.DropOut_rate
@@ -175,7 +175,7 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred
     kl_loss = (-0.5 / num_nodes) * torch.mean(torch.sum(1 + 2 * torch.log(std_z) - mean_z.pow(2) - (std_z).pow(2), dim=1))
     feat_loss = torch.nn.functional.mse_loss(x_pred, x_true)    
 
-    acc = (torch.sigmoid(pred).round() == labels).sum() / float(pred.shape[0] * pred.shape[1]) # accuracy on the train data
+    acc = (torch.sigmoid(pred).round() == labels).sum() / float(pred.shape[0] * pred.shape[1]*pred.shape[2]) # accuracy on the train data
     return kl_loss, reconstruction_loss, feat_loss , acc, val_recons_loss
 
 
@@ -228,14 +228,14 @@ if use_feature == False:
 
 # make train, test and val according to kipf original implementation
 if split_the_data_to_train_test == True:
-    adj_train, _, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative, train_edges_positive, train_edges_negative, ignore_edges_inx, val_edge_idx = mask_test_edges_new(original_adj)#mask_test_edges_new(original_adj)
+    adj_train, _, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative, train_edges_positive, train_edges_negative, ignore_edges_inx, val_edge_idx = mask_test_edges(original_adj)#mask_test_edges_new(original_adj)
     ignore_dges = []
 else:
     train_edges = val_edges = val_edges_false = test_edges = test_edges_false = ignore_edges_inx = val_edge_idx = None
     adj_train = original_adj
 
 # I use this mudule to plot error and loss
-pltr = plotter.Plotter(functions=["loss",  "Accuracy", "Recons Loss", "KL", "AUC"])
+pltr = plotter.Plotter(functions=["loss", "adj_Recons Loss","feature_Rec Loss", "KL",])
 
 
 
@@ -317,7 +317,7 @@ model = GVAE_FrameWork(encoder=encoder_model,
 #-----------------------------------------
 optimizer = torch.optim.Adam(model.parameters(), lr)
 
-pos_wight = torch.true_divide((adj_train.shape[-1] ** 2 - torch.sum(adj_train)), torch.sum(
+pos_wight = torch.true_divide((adj_train.shape[0] *adj_train.shape[1]*adj_train.shape[2] - torch.sum(adj_train)), torch.sum(
     adj_train))  # addrressing imbalance data problem: ratio between positve to negative instance
 
 norm = torch.true_divide(adj_train.shape[-1] * adj_train.shape[-1],
@@ -336,10 +336,11 @@ for epoch in range(epoch_number):
     std_z, m_z, z, reconstructed_adj_logit, reconstructed_x = model(graph_dgl, features)
 
     # compute loss and accuracy
-    z_kl, adj_reconstruction_loss,feat_loss, acc, val_recons_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm,reconstructed_x,features, ignore_edges_inx, val_edge_idx)
-
+    z_kl, adj_reconstruction_loss,feat_loss, acc, adj_val_recons_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm,reconstructed_x,features, ignore_edges_inx, val_edge_idx)
     loss = adj_reconstruction_loss+ feat_loss + z_kl
 
+    # record the loss; to be ploted
+    pltr.add_values(epoch, [ loss.item() ,adj_reconstruction_loss.item(), feat_loss.item(), z_kl.item()], [None,adj_val_recons_loss, None, None], redraw=False)  # plotter.Plotter(functions=["loss", "adj_Recons Loss","feature_Rec Loss", "KL",])
 
     # backward propagation
     optimizer.zero_grad()
@@ -355,13 +356,21 @@ for epoch in range(epoch_number):
 
     # Evaluate the model on the validation and plot the loss at every visulizer_step
     if epoch % visulizer_step == 0:
-        # plotter.redraw()
+        pltr.redraw()
         model.eval()
         reconstructed_adj = torch.sigmoid(reconstructed_adj_logit)
         utils.Link_prection_eval(categorized_val_edges_pos, categorized_val_edges_neg ,
                                                             reconstructed_adj, edge_labels)
         model.train()
+# save the loss plot in current dir
+pltr.save_plot("Loss_plot.png")
 
+
+if "nodeClassification" in downstreamTasks:
+    # add node classification code here
+    # z = model(adj, x)
+    # pred_label = Classifier(z, label)
+    pass
 
 
 
