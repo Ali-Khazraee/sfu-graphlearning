@@ -374,3 +374,4 @@ if "nodeClassification" in downstreamTasks:
 
 
 
+# note: TODO: add evaluation on test set
