@@ -4,7 +4,7 @@ start_time = time.monotonic()
 import dgl
 import classification as CL
 from input_data import load_data
-from mask_test_edges import mask_test_edges_new, roc_auc_estimator,mask_test_edges
+from mask_test_edges import mask_test_edges_new, roc_auc_estimator,mask_test_edges,mask_test_edges_new
 import plotter
 import argparse
 from utils import *
@@ -33,12 +33,12 @@ torch.backends.cudnn.deterministic = True
 # modelpath
 parser = argparse.ArgumentParser(description='VGAE Framework')
 
-parser.add_argument('-e', dest="epoch_number", type=int, default=101, help="Number of Epochs")
+parser.add_argument('-e', dest="epoch_number", type=int, default=201, help="Number of Epochs")
 parser.add_argument('-v', dest="Vis_step", type=int, default=20, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
 parser.add_argument('-dataset', dest="dataset", default="ACM",
                     help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM")
-parser.add_argument('-hemogenize', dest="hemogenize", default=True, help="either withhold the layers (edges types) during training or not")
+parser.add_argument('-hemogenize', dest="hemogenize", default=False, help="either withhold the layers (edges types) during training or not")
 parser.add_argument('-NofCom', dest="num_of_comunities",type=int, default=64,
                     help="Dimention of Z, i.e len(Z[0]), in the bottleNEck")
 parser.add_argument('-encoder_layers', dest="encoder_layers", default="64", type=str,
@@ -228,7 +228,7 @@ if use_feature == False:
 
 # make train, test and val according to kipf original implementation
 if split_the_data_to_train_test == True:
-    adj_train, _, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative, train_edges_positive, train_edges_negative, ignore_edges_inx, val_edge_idx = mask_test_edges(original_adj)
+    adj_train, _, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative, train_edges_positive, train_edges_negative, ignore_edges_inx, val_edge_idx = mask_test_edges_new(original_adj)#mask_test_edges_new(original_adj)
     ignore_dges = []
 else:
     train_edges = val_edges = val_edges_false = test_edges = test_edges_false = ignore_edges_inx = val_edge_idx = None
@@ -258,6 +258,7 @@ if hemogenized != True:
 
     train_matrix = [ torch.tensor(mtrix) for mtrix in  train_matrix]
     adj_train = torch.stack(train_matrix)
+
     # add the self loop; ToDO: Not the best approach
     graph_dgl.append(
         dgl.graph((list(range(adj_train.shape[-1])), list(range(adj_train.shape[-1]))), num_nodes=adj_train.shape[-1]))
@@ -293,7 +294,7 @@ if encoder == "GCN_Encoder":
 # e.g elif: myEncoder = encoder()
 
 elif encoder=="RGCN_Encoder":
-    encoder_model = RGCN_Encoder(in_feature=features.shape[1],num_relation=num_obs,
+    encoder_model = RGCN_Encoder(in_feature=features.shape[1],num_relation=len(graph_dgl),
                                 latent_dim=num_of_comunities, layers=encoder_layers, DropOut_rate=DropOut_rate)
 else:
     raise Exception("Sorry, this Encoder is not Impemented; check the input args")
@@ -301,7 +302,7 @@ else:
 # Check for Decoder and redirect to appropriate function
 # if decoder == ""
 if decoder == "MultiRelational_SBM":
-    decoder_model = MultiRelational_SBM_decoder( number_of_rel =num_obs, Lambda_dim = num_of_comunities, in_dim=num_of_comunities, normalize = batch_norm, DropOut_rate =DropOut_rate)
+    decoder_model = MultiRelational_SBM_decoder( number_of_rel =adj_train.shape[0], Lambda_dim = num_of_comunities, in_dim=num_of_comunities, normalize = batch_norm, DropOut_rate =DropOut_rate)
 elif decoder == "InnerProductDecoder": # Kipf
     decoder_model = InnerProductDecoder()
 else:
@@ -335,9 +336,9 @@ for epoch in range(epoch_number):
     std_z, m_z, z, reconstructed_adj_logit, reconstructed_x = model(graph_dgl, features)
 
     # compute loss and accuracy
-    z_kl, reconstruction_loss,feat_loss, acc, val_recons_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm,reconstructed_x,features, ignore_edges_inx, val_edge_idx)
+    z_kl, adj_reconstruction_loss,feat_loss, acc, val_recons_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm,reconstructed_x,features, ignore_edges_inx, val_edge_idx)
 
-    loss = reconstruction_loss+ feat_loss #+ z_kl
+    loss = adj_reconstruction_loss+ feat_loss + z_kl
 
 
     # backward propagation
@@ -348,8 +349,8 @@ for epoch in range(epoch_number):
     #-------------------------------------------
     # batch detail
     # print some metrics
-    print("Epoch: {:03d} | Loss: {:05f} | Reconstruction_loss: {:05f} | z_kl_loss: {:05f}".format(
-        epoch + 1, loss.item(), reconstruction_loss.item(), z_kl.item()),"Feature_Reconstruction_loss: {:05f}".format(feat_loss.item()), "Acuuracy: {:05f} ".format(acc))
+    print("Epoch: {:03d} | Loss: {:05f} | adj_Reconstruction_loss: {:05f} | z_kl_loss: {:05f} |".format(
+        epoch + 1, loss.item(), adj_reconstruction_loss.item(), z_kl.item()),"Feature_Reconstruction_loss: {:05f} |".format(feat_loss.item()), "Acuuracy: {:05f} ".format(acc))
     #------------------------------------------
 
     # Evaluate the model on the validation and plot the loss at every visulizer_step
