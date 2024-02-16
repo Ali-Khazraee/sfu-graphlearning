@@ -22,9 +22,25 @@ torch.backends.cudnn.enabled = False
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 
-torch._set_deterministic(True)
+# torch._set_deterministic(True)
 import pickle as pickle
 import scipy.sparse
+
+
+
+
+class MLPDecoder(torch.nn.Module):
+    def __init__(self, in_channels, out_channels, hidden_channels=64):
+        super(MLPDecoder, self).__init__()
+        self.layers = torch.nn.Sequential(
+            torch.nn.Linear(in_channels, hidden_channels),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_channels, out_channels)
+        )
+
+    def forward(self, z):
+        return torch.sigmoid(self.layers(z))
+
 
 # ************************************************************
 # encoders

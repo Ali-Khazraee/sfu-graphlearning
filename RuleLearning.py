@@ -4,7 +4,7 @@ start_time = time.monotonic()
 import dgl
 import classification as CL
 from input_data import load_data
-from mask_test_edges import mask_test_edges, roc_auc_estimator
+from mask_test_edges import mask_test_edges_new, roc_auc_estimator,mask_test_edges
 import plotter
 import argparse
 from utils import *
@@ -21,7 +21,11 @@ torch.backends.cudnn.enabled = False
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 
-torch._set_deterministic(True)
+
+
+
+
+# torch._set_deterministic(True)
 
 # batch_norm
 # edge_Type
@@ -92,7 +96,7 @@ synthesis_graphs = {"grid", "community", "lobster", "ego"}
 # ************************************************************
 # VGAE frame_work
 class GVAE_FrameWork(torch.nn.Module):
-    def __init__(self, encoder, decoder):
+    def __init__(self, encoder, decoder, node_feat_decoder):
         """
         :param latent_dim: the dimention of each embedded node; |z| or len(z)
         :param decoder:
@@ -104,6 +108,7 @@ class GVAE_FrameWork(torch.nn.Module):
 
         self.decoder = decoder
         self.encoder = encoder
+        self.node_feat_decoder = node_feat_decoder
 
 
         # self.mlp_decoder = torch.nn.ModuleList([edge_mlp(2*latent_space_dim,[16,8,1]) for i in range(self.numb_of_rel)])
@@ -111,7 +116,8 @@ class GVAE_FrameWork(torch.nn.Module):
     def forward(self, adj, x):
         z, m_z, std_z = self.inference(adj, x)
         generated_adj = self.generator(z,x)
-        return std_z, m_z, z, generated_adj
+        generated_x = self.feat_generator(z)
+        return std_z, m_z, z, generated_adj, generated_x
 
     # inference model q(z|adj,x)
     def inference(self, adj, x):
@@ -122,6 +128,10 @@ class GVAE_FrameWork(torch.nn.Module):
     def generator(self, z, x):
         adj = self.decoder(z)
         return adj
+    
+    def feat_generator(self,z):
+        x = self.node_feat_decoder(z)
+        return x
 
     def reparameterize(self, mean, std):
         eps = torch.randn_like(std)
@@ -129,7 +139,7 @@ class GVAE_FrameWork(torch.nn.Module):
 # ************************************************************
 
 # objective Function
-def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm,
+def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred, x_true,
                  indexes_to_ignore=None, val_edge_idx=None):
     """
 
@@ -147,8 +157,7 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm,
     val_recons_loss = 0
 
     if indexes_to_ignore != None:
-        reconstruction_loss = norm * F.binary_cross_entropy_with_logits(pred, labels, pos_weight=pos_wight,
-                                                                   reduction='none')
+        reconstruction_loss = norm * F.binary_cross_entropy_with_logits(pred, labels, pos_weight=pos_wight, reduction='none')
         if val_edge_idx:
             val_recons_loss = reconstruction_loss[:, val_edge_idx[0], val_edge_idx[1]].mean()
 
@@ -164,10 +173,10 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm,
 
     #KL divergence
     kl_loss = (-0.5 / num_nodes) * torch.mean(torch.sum(1 + 2 * torch.log(std_z) - mean_z.pow(2) - (std_z).pow(2), dim=1))
-
+    feat_loss = torch.nn.functional.mse_loss(x_pred, x_true)    
 
     acc = (torch.sigmoid(pred).round() == labels).sum() / float(pred.shape[0] * pred.shape[1]) # accuracy on the train data
-    return kl_loss, reconstruction_loss, acc, val_recons_loss
+    return kl_loss, reconstruction_loss, feat_loss , acc, val_recons_loss
 
 
 # ============================================================
@@ -219,8 +228,7 @@ if use_feature == False:
 
 # make train, test and val according to kipf original implementation
 if split_the_data_to_train_test == True:
-    adj_train, _, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative, train_edges_positive, train_edges_negative, ignore_edges_inx, val_edge_idx = mask_test_edges(
-        original_adj)
+    adj_train, _, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative, train_edges_positive, train_edges_negative, ignore_edges_inx, val_edge_idx = mask_test_edges(original_adj)
     ignore_dges = []
 else:
     train_edges = val_edges = val_edges_false = test_edges = test_edges_false = ignore_edges_inx = val_edge_idx = None
@@ -299,9 +307,11 @@ elif decoder == "InnerProductDecoder": # Kipf
 else:
     raise Exception("Sorry, this Decoder is not Impemented; check the input args")
 
+feature_decoder_model = MLPDecoder(num_of_comunities, features.shape[1])
 
 model = GVAE_FrameWork(encoder=encoder_model,
-                       decoder=decoder_model)  # parameter namimng, it should be dimentionality of distriburion
+                       decoder=decoder_model,
+                       node_feat_decoder = feature_decoder_model)  # parameter namimng, it should be dimentionality of distriburion
 #-----------------------------------------
 #-----------------------------------------
 optimizer = torch.optim.Adam(model.parameters(), lr)
@@ -321,12 +331,14 @@ for epoch in range(epoch_number):
     model.train()
 
     # forward propagation by using all nodes
-    std_z, m_z, z, reconstructed_adj_logit = model(graph_dgl, features)
+
+    std_z, m_z, z, reconstructed_adj_logit, reconstructed_x = model(graph_dgl, features)
 
     # compute loss and accuracy
-    z_kl, reconstruction_loss, acc, val_recons_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm, ignore_edges_inx, val_edge_idx)
+    z_kl, reconstruction_loss,feat_loss, acc, val_recons_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm,reconstructed_x,features, ignore_edges_inx, val_edge_idx)
 
-    loss = reconstruction_loss #+ z_kl
+    loss = reconstruction_loss+ feat_loss #+ z_kl
+
 
     # backward propagation
     optimizer.zero_grad()
@@ -337,7 +349,7 @@ for epoch in range(epoch_number):
     # batch detail
     # print some metrics
     print("Epoch: {:03d} | Loss: {:05f} | Reconstruction_loss: {:05f} | z_kl_loss: {:05f}".format(
-        epoch + 1, loss.item(), reconstruction_loss.item(), z_kl.item()),"Acuuracy: {:05f} ".format(acc))
+        epoch + 1, loss.item(), reconstruction_loss.item(), z_kl.item()),"Feature_Reconstruction_loss: {:05f}".format(feat_loss.item()), "Acuuracy: {:05f} ".format(acc))
     #------------------------------------------
 
     # Evaluate the model on the validation and plot the loss at every visulizer_step
