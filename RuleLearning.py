@@ -139,10 +139,8 @@ class GVAE_FrameWork(torch.nn.Module):
 # ************************************************************
 
 # objective Function
-def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred, x_true,
-                 indexes_to_ignore=None, val_edge_idx=None):
+def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred, x_true, indexes_to_ignore=None, val_edge_idx=None):
     """
-
     :param pred: reconstructed adj matrix by model; its a stack of dense adj matrix
     :param labels: The origianl adj matrix which shoul be reconstructed; stack of matrices
     :param std_z:
@@ -154,22 +152,21 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred
     :param val_edge_idx: the indexces of val edges. its just for cal reconstrction loss of val edges
     :return:
     """
-    val_recons_loss = 0
+    val_recons_loss = None
 
-    if indexes_to_ignore != None:
-        reconstruction_loss = norm * F.binary_cross_entropy_with_logits(pred, labels, pos_weight=pos_wight, reduction='none')
-        if val_edge_idx:
-            val_recons_loss = reconstruction_loss[:, val_edge_idx[0], val_edge_idx[1]].mean()
 
-        reconstruction_loss[:,val_edge_idx[0], val_edge_idx[1]]= 0  # masking edges
+    reconstruction_loss = norm * F.binary_cross_entropy_with_logits(pred, labels, pos_weight=pos_wight, reduction='none')
 
-        reconstruction_loss = reconstruction_loss.mean()
+    # the validation reconstruction loss
+    if val_edge_idx:
+        val_recons_loss = reconstruction_loss[:, val_edge_idx[0], val_edge_idx[1]].mean()
 
-    else:
-        reconstruction_loss = norm * F.binary_cross_entropy_with_logits(pred, labels, pos_weight=pos_wight)
+    # some edges wont have reconstruciton losss
+    if indexes_to_ignore and  len(indexes_to_ignore)>0:
+        reconstruction_loss[:,indexes_to_ignore[0], indexes_to_ignore[1]]= 0  # masking edges
 
-        if val_edge_idx:
-            val_recons_loss = reconstruction_loss[:, val_edge_idx[0], val_edge_idx[1]].mean()
+    reconstruction_loss = reconstruction_loss.mean()
+
 
     #KL divergence
     kl_loss = (-0.5 / num_nodes) * torch.mean(torch.sum(1 + 2 * torch.log(std_z) - mean_z.pow(2) - (std_z).pow(2), dim=1))
@@ -294,7 +291,7 @@ if encoder == "GCN_Encoder":
 # e.g elif: myEncoder = encoder()
 
 elif encoder=="RGCN_Encoder":
-    encoder_model = RGCN_Encoder(in_feature=features.shape[1],num_relation=len(graph_dgl),
+    encoder_model = RGCN_Encoder(in_feature=features.shape[1],num_relation=len(adj_train),
                                 latent_dim=num_of_comunities, layers=encoder_layers, DropOut_rate=DropOut_rate)
 else:
     raise Exception("Sorry, this Encoder is not Impemented; check the input args")

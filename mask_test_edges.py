@@ -171,22 +171,25 @@ def mask_test_edges_new(adj):
     adj_train = sp.csr_matrix((data, (train_edges[:, 0], train_edges[:, 1])), shape=adj.shape)
     adj_train = adj_train + adj_train.T
 
-    ignore_edges_inx = [list(np.array(val_edges_false)[:,0]),list(np.array(val_edges_false)[:,1])]
-    ignore_edges_inx[0].extend(val_edges[:,0])
-    ignore_edges_inx[1].extend(val_edges[:,1])
-    import copy
+    # -----------------------------------------------------------------
+    ## the test and val edges wont effect reconstruction loss
+    # ignore_edges_inx = [list(np.array(val_edges_false)[:,0]),list(np.array(val_edges_false)[:,1])]
+    # ignore_edges_inx[0].extend(val_edges[:,0])
+    # ignore_edges_inx[1].extend(val_edges[:,1])
+    # import copy
+    #
+    # val_edge_idx = copy.deepcopy(ignore_edges_inx)
+    # ignore_edges_inx[0].extend(test_edges[:, 0])
+    # ignore_edges_inx[1].extend(test_edges[:, 1])
+    # ignore_edges_inx[0].extend(np.array(test_edges_false)[:, 0])
+    # ignore_edges_inx[1].extend(np.array(test_edges_false)[:, 1])
 
-    val_edge_idx = copy.deepcopy(ignore_edges_inx)
-    ignore_edges_inx[0].extend(test_edges[:, 0])
-    ignore_edges_inx[1].extend(test_edges[:, 1])
-    ignore_edges_inx[0].extend(np.array(test_edges_false)[:, 0])
-    ignore_edges_inx[1].extend(np.array(test_edges_false)[:, 1])
-
+    #-----------------------------------------------------------------
     # NOTE: these edge lists only contain single direction of edge!
     return adj_train, train_edges, val_edges, val_edges_false, test_edges, test_edges_false, train_edges, train_edges_false,ignore_edges_inx, val_edge_idx
 
 
-def mask_test_edges(adj):
+def mask_test_edges(adj, ignore_val_test_edges=False, ignore_self_loop=True):
     # Function to build test set with 10% positive links
     # NOTE: Splits are randomized and results might slightly deviate from reported numbers in the paper.
     # TODO: Clean up.
@@ -280,16 +283,28 @@ def mask_test_edges(adj):
     adj_train = sp.csr_matrix((data, (train_edges[:, 0], train_edges[:, 1])), shape=adj.shape)
     adj_train = adj_train + adj_train.T
 
-    ignore_edges_inx = [list(np.array(val_edges_false)[:,0]),list(np.array(val_edges_false)[:,1])]
-    ignore_edges_inx[0].extend(val_edges[:,0])
-    ignore_edges_inx[1].extend(val_edges[:,1])
+
+
+    val_edge_idx = [list(np.array(val_edges_false)[:,0]),list(np.array(val_edges_false)[:,1])]
+    val_edge_idx[0].extend(val_edges[:,0])
+    val_edge_idx[1].extend(val_edges[:,1])
     import copy
 
-    val_edge_idx = copy.deepcopy(ignore_edges_inx)
-    ignore_edges_inx[0].extend(test_edges[:, 0])
-    ignore_edges_inx[1].extend(test_edges[:, 1])
-    ignore_edges_inx[0].extend(np.array(test_edges_false)[:, 0])
-    ignore_edges_inx[1].extend(np.array(test_edges_false)[:, 1])
+    # -----------------------------------------------------------------
+    ## the test and val edges wont effect reconstruction loss
+    ignore_edges_inx= None
+    if ignore_val_test_edges != False:
+        ignore_edges_inx = copy.deepcopy(val_edge_idx)
+        ignore_edges_inx[0].extend(test_edges[:, 0])
+        ignore_edges_inx[1].extend(test_edges[:, 1])
+        ignore_edges_inx[0].extend(np.array(test_edges_false)[:, 0])
+        ignore_edges_inx[1].extend(np.array(test_edges_false)[:, 1])
+    # -----------------------------------------------------------------
 
+    if ignore_self_loop==True:
+        if not ignore_edges_inx:
+            ignore_edges_inx=[[],[]]
+        ignore_edges_inx[0].extend([i for i in range(adj.shape[0])])
+        ignore_edges_inx[1].extend([i for i in range(adj.shape[0])])
     # NOTE: these edge lists only contain single direction of edge!
     return adj_train, train_edges, val_edges, val_edges_false, test_edges, test_edges_false, list(train_edges_true), train_edges_false,ignore_edges_inx, val_edge_idx
