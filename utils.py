@@ -82,9 +82,9 @@ def Link_prection_eval(pos_edges, negative_edges, reconstructed_adj, original_ad
         if rel_label==0:
             pass# the type zero is used for negative edges and will be ignores
 
-        auc , acc,ap, cof_mtx = roc_auc_estimator(egdes, negative_edges[rel_label],
-                          reconstructed_adj[rel_label-1], original_adj_label)
-        print("The result for rel: {:01d}".format(rel_label, ), "with Number of positive edges: {:01d}".format(len(egdes)))
+        auc , acc,ap, cof_mtx = roc_auc_estimator(egdes, negative_edges[int(rel_label)],
+                          reconstructed_adj[int(rel_label)-1], original_adj_label)
+        print("The result for rel: {:01d}".format(int(rel_label), ), "with Number of positive edges: {:01d}".format(len(egdes)))
         print("AUC: {:05f}".format(auc) ,"AP: {:05f}".format(ap),"Acuuracy: {:05f}".format(acc))
 
         print("ConfMtirx:")
