@@ -1,4 +1,4 @@
-
+import torch
 import time
 start_time = time.monotonic()
 import dgl
@@ -11,6 +11,7 @@ from utils import *
 import utils
 import networkx as nx
 from AEmodels import *
+from setup import setup_function, iteration_function
 
 np.random.seed(0)
 random.seed(0)
@@ -36,7 +37,7 @@ parser = argparse.ArgumentParser(description='VGAE Framework')
 parser.add_argument('-e', dest="epoch_number", type=int, default=201, help="Number of Epochs")
 parser.add_argument('-v', dest="Vis_step", type=int, default=20, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
-parser.add_argument('-dataset', dest="dataset", default="IMDB",
+parser.add_argument('-dataset', dest="dataset", default="IMDB-PyG",
                     help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM")
 parser.add_argument('-hemogenize', dest="hemogenize", default=False, help="either withhold the layers (edges types) during training or not")
 parser.add_argument('-NofCom', dest="num_of_comunities",type=int, default=64,
@@ -88,9 +89,14 @@ split_the_data_to_train_test = args.split_the_data_to_train_test
 synthesis_graphs = {"grid", "community", "lobster", "ego"}
 
 
+#============================================================'
+# Tcount ground truth motif
 
+rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities = setup_function('imdb')
 
+ground_truth = iteration_function(rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities)
 
+'edit'
 
 
 # ************************************************************
@@ -139,7 +145,7 @@ class GVAE_FrameWork(torch.nn.Module):
 # ************************************************************
 
 # objective Function
-def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred, x_true, indexes_to_ignore=None, val_edge_idx=None):
+def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred, x_true, ground_truth, predicted, indexes_to_ignore=None, val_edge_idx=None):
     """
     :param pred: reconstructed adj matrix by model; its a stack of dense adj matrix
     :param labels: The origianl adj matrix which shoul be reconstructed; stack of matrices
@@ -154,7 +160,22 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred
     """
     val_recons_loss = None
 
+    'start edit'
+    
+    ground_truth = [tensor.item() for tensor in ground_truth]
+    
+    std_dev = np.std(ground_truth)
+    for i in range(len(ground_truth)):
+        ground_truth[i] = ground_truth[i] / std_dev
+        
+    for i in range(len(ground_truth)):
+        predicted[i] = predicted[i] / std_dev
+                 
 
+    motif = ((a-b)**2 for a, b in zip(ground_truth, predicted))
+    motif_loss = np.sum(np.fromiter(motif, dtype=float))*(1/len(ground_truth))
+    'end edit'
+    
     reconstruction_loss = norm * F.binary_cross_entropy_with_logits(pred, labels, pos_weight=pos_wight, reduction='none')
 
     # the validation reconstruction loss
@@ -173,7 +194,7 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred
     feat_loss = torch.nn.functional.mse_loss(x_pred, x_true)    
 
     acc = (torch.sigmoid(pred).round() == labels).sum() / float(pred.shape[0] * pred.shape[1]*pred.shape[2]) # accuracy on the train data
-    return kl_loss, reconstruction_loss, feat_loss , acc, val_recons_loss
+    return kl_loss, reconstruction_loss, feat_loss , acc, val_recons_loss , motif_loss
 
 
 # ============================================================
@@ -186,7 +207,7 @@ if dataset in ('grid', 'community', 'ego', 'lobster'):
     node_label = edge_labels = circles = None
 else:
     synthetic = False
-    original_adj, features, node_label, edge_labels, circles = load_data(dataset)
+    original_adj, features, node_label, edge_labels, circles, map_dic = load_data(dataset)
 
 
 # shuffling the data, and selecting a subset of it; subgraph_size is used to do the ecperimnet on the samller dataset to insclease development speed
@@ -331,10 +352,46 @@ for epoch in range(epoch_number):
     # forward propagation by using all nodes
 
     std_z, m_z, z, reconstructed_adj_logit, reconstructed_x = model(graph_dgl, features)
+    
+    'start edit'
+    
+    reconstructed_adjacency = torch.sigmoid(reconstructed_adj_logit)
+    
+    edge_encoding_to_node_types = {v: k for k, v in map_dic['edge_type_encoding'].items()}
+    filtered_reconstruct_adj = []
+    
+    for idx, adj_matrix in enumerate(reconstructed_adjacency):
+        node_types = edge_encoding_to_node_types[idx + 1]  
+        src_type, dst_type = node_types
 
+        src_start, src_end = map_dic['node_type_to_index_map'][src_type]
+        dst_start, dst_end = map_dic['node_type_to_index_map'][dst_type]
+
+
+        filtered_matrix = adj_matrix[src_start:src_end, dst_start:dst_end]
+
+
+        filtered_reconstruct_adj.append(filtered_matrix)
+    
+    filtered_reconstruct_adj_tensors = [torch.tensor(matrix).to('cuda:0') for matrix in filtered_reconstruct_adj]
+    
+    
+    for filtered_matrix in filtered_reconstruct_adj_tensors:
+        filtered_shape = filtered_matrix.shape 
+    
+        for key, matrix in matrices.items():
+            if matrix.shape == filtered_shape:
+                matrices[key] = filtered_matrix
+                break
+            
+    predicted = iteration_function(rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities)
+
+            
+    'end edit'        
+            
     # compute loss and accuracy
-    z_kl, adj_reconstruction_loss,feat_loss, acc, adj_val_recons_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm,reconstructed_x,features, ignore_edges_inx, val_edge_idx)
-    loss = adj_reconstruction_loss+ feat_loss + z_kl
+    z_kl, adj_reconstruction_loss,feat_loss, acc, adj_val_recons_loss, motif_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm,reconstructed_x,features,ground_truth, predicted, ignore_edges_inx, val_edge_idx, )
+    loss = adj_reconstruction_loss+ feat_loss + z_kl + motif_loss
 
     # record the loss; to be ploted
     pltr.add_values(epoch, [ loss.item() ,adj_reconstruction_loss.item(), feat_loss.item(), z_kl.item()], [None,adj_val_recons_loss, None, None], redraw=False)  # plotter.Plotter(functions=["loss", "adj_Recons Loss","feature_Rec Loss", "KL",])

@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 import sys
 import pickle as pkl
@@ -6,6 +7,8 @@ import scipy.sparse as sp
 import zipfile
 import math
 from  Synthatic_graph_generator import Synthetic_data
+from scipy.sparse import csr_matrix
+from torch_geometric.datasets import IMDB
 
 def parse_index_file(filename):
     index = []
@@ -19,6 +22,8 @@ def load_data(dataset):
       None in case the data set does not come with the information"""
     if dataset =="IMDB":
         return IMDB()
+    if dataset =="IMDB-PyG":
+        return IMDB_PyG()
     if dataset =="NELL":
         return NELL()
     elif dataset =="DBLP":
@@ -165,6 +170,58 @@ def IMDB():
 
 
     return adj, feature, node_label, edge_labels, None
+
+
+def IMDB_PyG():
+    dataset = IMDB('.')
+    heterodata = dataset[0]
+    #heterodata = torch.load('data/IMDB/heterodata.pt')
+
+    num_nodes = sum(heterodata[node_type].num_nodes for node_type in heterodata.node_types)
+    adj = csr_matrix((num_nodes, num_nodes), dtype=int)
+    edge_labels = csr_matrix((num_nodes, num_nodes), dtype=int)
+
+    node_type_to_index_map = {}
+    current_index = 0
+    for node_type in heterodata.node_types:
+        node_count = heterodata[node_type].num_nodes
+        node_type_to_index_map[node_type] = (current_index, current_index + node_count)
+        current_index += node_count
+
+    node_labels = np.zeros(num_nodes, dtype=int)
+    for node_type, (start, end) in node_type_to_index_map.items():
+        node_labels[start:end] = list(heterodata.node_types).index(node_type)
+
+    edge_type_encoding = {}
+    counter = 1
+    for edge_type in heterodata.edge_types:
+        simplified_edge_type = tuple(sorted([edge_type[0], edge_type[2]]))
+        if simplified_edge_type not in edge_type_encoding:
+            edge_type_encoding[simplified_edge_type] = counter
+            counter += 1
+
+    for edge_type in heterodata.edge_types:
+        edge_index = heterodata[edge_type].edge_index.numpy()
+        src_indices_global = edge_index[0] + node_type_to_index_map[edge_type[0]][0]
+        dst_indices_global = edge_index[1] + node_type_to_index_map[edge_type[2]][0]
+        simplified_edge_type = tuple(sorted([edge_type[0], edge_type[2]]))
+        edge_code = edge_type_encoding[simplified_edge_type]
+        adj[src_indices_global, dst_indices_global] = 1
+        edge_labels[src_indices_global, dst_indices_global] = edge_code
+
+    features = np.vstack([heterodata[node_type].x.numpy() for node_type in heterodata.node_types])
+    features = csr_matrix(features)
+    
+    circles = None
+
+    mapping_details = {
+        'node_type_to_index_map': node_type_to_index_map,
+        'edge_type_encoding': edge_type_encoding,
+    }
+
+    return adj, features, node_labels, edge_labels, circles, mapping_details
+
+
 
 
 def DBLP():
