@@ -21,7 +21,7 @@ def load_data(dataset):
     """the method will return adjacncy matrix, node features, nodes label, edges label and circules.
       None in case the data set does not come with the information"""
     if dataset =="IMDB":
-        return IMDB()
+        return IMDb()
     if dataset =="IMDB-PyG":
         return IMDB_PyG()
     if dataset =="NELL":
@@ -136,7 +136,7 @@ def facebook_egoes__dataset():
     return adj, feature, None , None, circules
 #
 
-def IMDB():
+def IMDb():
     obj = []
 
     adj_file_name = "data/IMDB/edges.pkl"
@@ -173,9 +173,10 @@ def IMDB():
 
 
 def IMDB_PyG():
-    dataset = IMDB('.')
+    dataset = IMDB("\..")
     heterodata = dataset[0]
-    #heterodata = torch.load('data/IMDB/heterodata.pt')
+    labels = heterodata['movie']['y']
+    # heterodata = torch.load('data/IMDB/heterodata.pt')
 
     num_nodes = sum(heterodata[node_type].num_nodes for node_type in heterodata.node_types)
     adj = csr_matrix((num_nodes, num_nodes), dtype=int)
@@ -219,7 +220,7 @@ def IMDB_PyG():
         'edge_type_encoding': edge_type_encoding,
     }
 
-    return adj, features, node_labels, edge_labels, circles, mapping_details
+    return adj, features, labels, edge_labels, circles, mapping_details
 
 
 
@@ -388,7 +389,7 @@ if __name__ == '__main__':
     # AMiner()
     ACM()
 
-    IMDB()
+    IMDb()
     DBLP()
 
     facebook_pages()

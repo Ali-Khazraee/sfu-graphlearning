@@ -5,6 +5,8 @@ import torch as torch
 import scipy.sparse as sp
 import numpy as np
 from torch.nn import init
+import torch.nn as nn
+import torch.nn.functional as F
 
 
 # torch.seed()
@@ -404,3 +406,20 @@ class Learnable_Histogram(torch.nn.Module):
         self.bin_width = torch.nn.init.xavier_uniform_(self.bin_width)
         self.bin_center = torch.nn.init.xavier_uniform_(self.bin_center)
 
+
+
+class NodeClassifier(nn.Module):
+    def __init__(self, input_dim, num_classes):
+        super(NodeClassifier, self).__init__()
+        self.fc1 = nn.Linear(input_dim, 64)
+        self.fc2 = nn.Linear(64, 32)
+        self.fc3 = nn.Linear(32, num_classes)
+        self.dropout = nn.Dropout(p=0.1)
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = F.relu(self.fc2(x))
+        x = self.dropout(x)
+        x = F.relu(self.fc3(x))
+        return F.log_softmax(x, dim=1)

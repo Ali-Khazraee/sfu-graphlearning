@@ -40,6 +40,7 @@ import matplotlib.pyplot as plt
 
 
 def  reduce_node_features(x, y , random_seed,  n_components=5):
+    np.random.seed(random_seed)
     model = ExtraTreesClassifier()
     model.fit(x,y)
     feat_importances = pd.Series(model.feature_importances_)
@@ -63,7 +64,7 @@ dataa = IMDB("\..")[0]
 
 
 data_bi = dataa
-x_reduced, important_feats = reduce_node_features(data_bi['movie']['x'], data_bi['movie']['y'], random_seed, )
+x_reduced, important_feats = reduce_node_features(data_bi['movie']['x'], data_bi['movie']['y'], random_seed)
 x_reduced = x_reduced.type(torch.float)
 
 

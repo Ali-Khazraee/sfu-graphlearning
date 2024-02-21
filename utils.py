@@ -1,7 +1,11 @@
 import numpy as np
 # from mask_test_edges import *
 from sklearn.metrics import roc_auc_score, accuracy_score, confusion_matrix,average_precision_score
-
+import torch
+import torch.nn as nn
+from sklearn.ensemble import ExtraTreesClassifier
+import pandas as pd
+from sklearn.metrics import precision_score, accuracy_score, recall_score, confusion_matrix, f1_score, classification_report
 def edgeList_to_listsOfEdges(edges, ht_graph):
     """
     This function take a list of edges and seperate them based on the edges label,
@@ -89,6 +93,29 @@ def Link_prection_eval(pos_edges, negative_edges, reconstructed_adj, original_ad
 
         print("ConfMtirx:")
         print(cof_mtx)
+        
+
+def reduce_node_features(x, y , random_seed,  n_components=5):
+    model = ExtraTreesClassifier()
+    model.fit(x,y)
+    feat_importances = pd.Series(model.feature_importances_)
+    important_feats = np.array(feat_importances.nlargest(n_components).index)
+    x_reduced = x[:, important_feats] 
+    return x_reduced, important_feats
+    
+
+def get_metrices(labels_test, labels_pred):
+    accuracy = accuracy_score(labels_test, labels_pred)
+    
+    recall = recall_score(labels_test, labels_pred, average = 'weighted')
+    precision = precision_score(labels_test, labels_pred,  average = 'weighted')
+    
+    results = "Accuracy: {:.4f}, Precision:{:.4f}, recall:{:.4f}".format(accuracy, precision, recall)
+    print(results) 
 
 
+
+def test_label_decoder(node_labels_pred, gt_labels,masked_indexes):
+    predicted_labels = torch.argmax(node_labels_pred, dim=1)
+    get_metrices(gt_labels[masked_indexes], predicted_labels[masked_indexes].numpy())
 

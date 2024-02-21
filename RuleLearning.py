@@ -12,6 +12,7 @@ import utils
 import networkx as nx
 from AEmodels import *
 from setup import setup_function, iteration_function
+import copy
 
 np.random.seed(0)
 random.seed(0)
@@ -34,7 +35,7 @@ torch.backends.cudnn.deterministic = True
 # modelpath
 parser = argparse.ArgumentParser(description='VGAE Framework')
 
-parser.add_argument('-e', dest="epoch_number", type=int, default=201, help="Number of Epochs")
+parser.add_argument('-e', dest="epoch_number", type=int, default=101, help="Number of Epochs")
 parser.add_argument('-v', dest="Vis_step", type=int, default=20, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
 parser.add_argument('-dataset', dest="dataset", default="IMDB-PyG",
@@ -92,7 +93,7 @@ synthesis_graphs = {"grid", "community", "lobster", "ego"}
 #============================================================'
 # Tcount ground truth motif
 
-rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities = setup_function('imdb')
+rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities = setup_function(dataset)
 
 ground_truth = iteration_function(rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities)
 
@@ -102,7 +103,7 @@ ground_truth = iteration_function(rules, multiples, states, functors, variables,
 # ************************************************************
 # VGAE frame_work
 class GVAE_FrameWork(torch.nn.Module):
-    def __init__(self, encoder, decoder, node_feat_decoder):
+    def __init__(self, encoder, decoder, node_feat_decoder, label_decoder):
         """
         :param latent_dim: the dimention of each embedded node; |z| or len(z)
         :param decoder:
@@ -115,6 +116,7 @@ class GVAE_FrameWork(torch.nn.Module):
         self.decoder = decoder
         self.encoder = encoder
         self.node_feat_decoder = node_feat_decoder
+        self.label_decoder = label_decoder
 
 
         # self.mlp_decoder = torch.nn.ModuleList([edge_mlp(2*latent_space_dim,[16,8,1]) for i in range(self.numb_of_rel)])
@@ -123,7 +125,8 @@ class GVAE_FrameWork(torch.nn.Module):
         z, m_z, std_z = self.inference(adj, x)
         generated_adj = self.generator(z,x)
         generated_x = self.feat_generator(z)
-        return std_z, m_z, z, generated_adj, generated_x
+        generated_label = self.label_decoder(z)
+        return std_z, m_z, z, generated_adj, generated_x, generated_label
 
     # inference model q(z|adj,x)
     def inference(self, adj, x):
@@ -142,10 +145,12 @@ class GVAE_FrameWork(torch.nn.Module):
     def reparameterize(self, mean, std):
         eps = torch.randn_like(std)
         return eps.mul(std).add(mean)
+    
+
 # ************************************************************
 
 # objective Function
-def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred, x_true, ground_truth, predicted, indexes_to_ignore=None, val_edge_idx=None):
+def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred, x_true, ground_truth, predicted, predicted_node_labels, gt_labels, indexes_to_ignore=None, val_edge_idx=None):
     """
     :param pred: reconstructed adj matrix by model; its a stack of dense adj matrix
     :param labels: The origianl adj matrix which shoul be reconstructed; stack of matrices
@@ -193,8 +198,15 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred
     kl_loss = (-0.5 / num_nodes) * torch.mean(torch.sum(1 + 2 * torch.log(std_z) - mean_z.pow(2) - (std_z).pow(2), dim=1))
     feat_loss = torch.nn.functional.mse_loss(x_pred, x_true)    
 
+    # label loss
+    not_masked_labels = torch.where(gt_labels != -1)[0]
+    criterion = nn.CrossEntropyLoss()
+    label_loss = criterion(predicted_node_labels[not_masked_labels,:], gt_labels[not_masked_labels])
+    
+
     acc = (torch.sigmoid(pred).round() == labels).sum() / float(pred.shape[0] * pred.shape[1]*pred.shape[2]) # accuracy on the train data
-    return kl_loss, reconstruction_loss, feat_loss , acc, val_recons_loss , motif_loss
+    print(motif_loss)
+    return kl_loss, reconstruction_loss, feat_loss , acc, val_recons_loss , motif_loss, label_loss
 
 
 # ============================================================
@@ -208,8 +220,11 @@ if dataset in ('grid', 'community', 'ego', 'lobster'):
 else:
     synthetic = False
     original_adj, features, node_label, edge_labels, circles, map_dic = load_data(dataset)
-
-
+    if dataset == "IMDB-PyG":
+        features_with_labels = np.array(features.todense()[:map_dic['node_type_to_index_map']['movie'][1]])
+        _, important_feat_ids = reduce_node_features(features_with_labels, node_label, random_seed = 0)
+    else:
+        _, important_feat_ids = reduce_node_features(np.array(features), node_label, 0)
 # shuffling the data, and selecting a subset of it; subgraph_size is used to do the ecperimnet on the samller dataset to insclease development speed
 if subgraph_size == -1:
     subgraph_size = original_adj.shape[-1]
@@ -327,10 +342,12 @@ else:
     raise Exception("Sorry, this Decoder is not Impemented; check the input args")
 
 feature_decoder_model = MLPDecoder(num_of_comunities, features.shape[1])
+label_decoder_model = NodeClassifier(num_of_comunities, np.unique(node_label).shape[0])
 
 model = GVAE_FrameWork(encoder=encoder_model,
                        decoder=decoder_model,
-                       node_feat_decoder = feature_decoder_model)  # parameter namimng, it should be dimentionality of distriburion
+                       node_feat_decoder = feature_decoder_model,
+                       label_decoder = label_decoder_model)  # parameter namimng, it should be dimentionality of distriburion
 #-----------------------------------------
 #-----------------------------------------
 optimizer = torch.optim.Adam(model.parameters(), lr)
@@ -344,6 +361,12 @@ norm = torch.true_divide(adj_train.shape[-1] * adj_train.shape[-1],
 best_recorded_validation = None
 best_epoch = 0
 
+
+# mask 20% of the labels
+gt_labels = copy.deepcopy(node_label)
+masked_indexes = np.random.choice(gt_labels.shape[0], round(gt_labels.shape[0] * 2/10), replace=False)
+gt_labels[masked_indexes] = -1
+
 print(model)
 for epoch in range(epoch_number):
 
@@ -351,7 +374,7 @@ for epoch in range(epoch_number):
 
     # forward propagation by using all nodes
 
-    std_z, m_z, z, reconstructed_adj_logit, reconstructed_x = model(graph_dgl, features)
+    std_z, m_z, z, reconstructed_adj_logit, reconstructed_x, reconstructed_labels = model(graph_dgl, features)
     
     'start edit'
     
@@ -384,17 +407,35 @@ for epoch in range(epoch_number):
                 matrices[key] = filtered_matrix
                 break
             
+
+    if dataset == "IMDB-PyG":
+        movie_reconstructed_x = reconstructed_x[:map_dic['node_type_to_index_map']['movie'][1]]        
+        reconstructed_x_important_feats = movie_reconstructed_x[:,important_feat_ids]
+        for i in range(1, len(important_feat_ids)+1):
+            feature_name = f'feature_{i}'
+    
+            tensor_to_assign = ((reconstructed_x_important_feats[:, i-1]) > 0.5).int().cpu().numpy()
+            entities['movies'][feature_name] = tensor_to_assign
+        
+        # only use labels of the movies
+        reconstructed_labels = reconstructed_labels[:map_dic['node_type_to_index_map']['movie'][1]]
+    
+        entities['movies']['label'] = torch.argmax(reconstructed_labels, dim=1)
+    
+    
+        
+            
     predicted = iteration_function(rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities)
 
             
     'end edit'        
             
     # compute loss and accuracy
-    z_kl, adj_reconstruction_loss,feat_loss, acc, adj_val_recons_loss, motif_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm,reconstructed_x,features,ground_truth, predicted, ignore_edges_inx, val_edge_idx, )
-    loss = adj_reconstruction_loss+ feat_loss + z_kl + motif_loss
+    z_kl, adj_reconstruction_loss,feat_loss, acc, adj_val_recons_loss, motif_loss, label_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm,reconstructed_x,features,ground_truth, predicted, reconstructed_labels, gt_labels,  ignore_edges_inx, val_edge_idx)
+    loss = adj_reconstruction_loss+ feat_loss + z_kl + motif_loss + label_loss
 
     # record the loss; to be ploted
-    pltr.add_values(epoch, [ loss.item() ,adj_reconstruction_loss.item(), feat_loss.item(), z_kl.item()], [None,adj_val_recons_loss, None, None], redraw=False)  # plotter.Plotter(functions=["loss", "adj_Recons Loss","feature_Rec Loss", "KL",])
+    pltr.add_values(epoch, [ loss.item() ,adj_reconstruction_loss.item(), feat_loss.item(), z_kl.item()], [None,adj_val_recons_loss.item(), None, None], redraw=False)  # plotter.Plotter(functions=["loss", "adj_Recons Loss","feature_Rec Loss", "KL",])
 
     # backward propagation
     optimizer.zero_grad()
@@ -407,17 +448,19 @@ for epoch in range(epoch_number):
     print("Epoch: {:03d} | Loss: {:05f} | adj_Reconstruction_loss: {:05f} | z_kl_loss: {:05f} |".format(
         epoch + 1, loss.item(), adj_reconstruction_loss.item(), z_kl.item()),"Feature_Reconstruction_loss: {:05f} |".format(feat_loss.item()), "Acuuracy: {:05f} |".format(acc), "Val_adj_Reconstruction_loss: {:05f}".format(adj_val_recons_loss))
     #------------------------------------------
-
+    print("label loss: ", label_loss.item())
     # Evaluate the model on the validation and plot the loss at every visulizer_step
     if epoch % visulizer_step == 0:
         pltr.redraw()
         model.eval()
         reconstructed_adj = torch.sigmoid(reconstructed_adj_logit)
         utils.Link_prection_eval(categorized_val_edges_pos, categorized_val_edges_neg ,
-                                                            reconstructed_adj, edge_labels)
+                                                            reconstructed_adj.detach().numpy(), edge_labels)
         model.train()
 # save the loss plot in current dir
 pltr.save_plot("Loss_plot.png")
+
+test_label_decoder(reconstructed_labels, node_label,masked_indexes)
 
 
 if "nodeClassification" in downstreamTasks:
