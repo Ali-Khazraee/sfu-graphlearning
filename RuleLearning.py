@@ -38,7 +38,7 @@ parser = argparse.ArgumentParser(description='VGAE Framework')
 parser.add_argument('-e', dest="epoch_number", type=int, default=101, help="Number of Epochs")
 parser.add_argument('-v', dest="Vis_step", type=int, default=20, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
-parser.add_argument('-dataset', dest="dataset", default="IMDB-PyG",
+parser.add_argument('-dataset', dest="dataset", default="acm",
                     help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM")
 parser.add_argument('-hemogenize', dest="hemogenize", default=False, help="either withhold the layers (edges types) during training or not")
 parser.add_argument('-NofCom', dest="num_of_comunities", type=int, default=64,
@@ -206,8 +206,7 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred
 
 
     acc = (torch.sigmoid(pred).round() == labels).sum() / float(pred.shape[0] * pred.shape[1]*pred.shape[2]) # accuracy on the train data
-    motif_loss = 0
-    print(motif_loss)
+
     return kl_loss, reconstruction_loss, feat_loss , acc, val_recons_loss , motif_loss, label_loss
 
 # ============================================================
@@ -220,12 +219,7 @@ if dataset in ('grid', 'community', 'ego', 'lobster'):
     node_label = edge_labels = circles = None
 else:
     synthetic = False
-    original_adj, features, node_label, edge_labels, circles, map_dic = load_data(dataset)
-    if dataset == "IMDB-PyG":
-        features_with_labels = np.array(features.todense()[:map_dic['node_type_to_index_map']['movie'][1]])
-        _, important_feat_ids = reduce_node_features(features_with_labels, node_label, random_seed = 0)
-    else:
-        _, important_feat_ids = reduce_node_features(np.array(features.todense()), node_label, 0)
+    original_adj, features, node_label, edge_labels, circles, map_dic, important_feat_ids = load_data(dataset)
 # shuffling the data, and selecting a subset of it; subgraph_size is used to do the ecperimnet on the samller dataset to insclease development speed
 if subgraph_size == -1:
     subgraph_size = original_adj.shape[-1]

@@ -10,6 +10,7 @@ from  Synthatic_graph_generator import Synthetic_data
 from scipy.sparse import csr_matrix
 from torch_geometric.datasets import IMDB
 from torch_geometric.datasets import Amazon, Planetoid
+from utils import * 
 
 
 def parse_index_file(filename):
@@ -24,57 +25,16 @@ def load_data(dataset):
       None in case the data set does not come with the information"""
     
     if dataset == "cora":
-        ds = Planetoid("\..", "cora")[0]
-        num_nodes = ds['y'].shape[0]
-        adjacency_matrix = np.zeros((num_nodes, num_nodes))
+        return cora()
 
-        # Iterate over the edge index and fill in the adjacency matrix
-        edge_index = ds['edge_index']
-        for i in range(edge_index.shape[1]):
-            start_node = edge_index[0, i].item()
-            end_node = edge_index[1, i].item()
-            adjacency_matrix[start_node, end_node] = 1
-            adjacency_matrix[end_node, start_node] = 1  # For und
-        
-        features = csr_matrix(ds['x'].numpy())
-        return csr_matrix(adjacency_matrix),features, ds['y'], csr_matrix(adjacency_matrix), None, None
- 
     
     if dataset == "citeseer":
-        ds = Planetoid("\..", "citeseer")[0]
-        num_nodes = ds['y'].shape[0]
-        adjacency_matrix = np.zeros((num_nodes, num_nodes))
-
-        # Iterate over the edge index and fill in the adjacency matrix
-        edge_index = ds['edge_index']
-        for i in range(edge_index.shape[1]):
-            start_node = edge_index[0, i].item()
-            end_node = edge_index[1, i].item()
-            adjacency_matrix[start_node, end_node] = 1
-            adjacency_matrix[end_node, start_node] = 1  # For und
-        
-        features = csr_matrix(ds['x'].numpy())
-        return csr_matrix(adjacency_matrix),features, ds['y'], csr_matrix(adjacency_matrix), None, None
+        return citeseer()
     
     if dataset == "acm":
+        return acm_homogenized()
 
-        ds = torch.load("../VGAE/db/acm.pt")
-        ds['y'] =torch.tensor(ds['y'])
-        num_nodes = ds['y'].shape[0]
-        adjacency_matrix = np.zeros((num_nodes, num_nodes))
 
-        # Iterate over the edge index and fill in the adjacency matrix
-        edge_index = ds['edge_index']
-        for i in range(edge_index.shape[1]):
-            start_node = edge_index[0, i].item()
-            end_node = edge_index[1, i].item()
-            adjacency_matrix[start_node, end_node] = 1
-            adjacency_matrix[end_node, start_node] = 1  # For und
-        
-        features = csr_matrix(ds['x'].numpy())
-        return csr_matrix(adjacency_matrix),features, ds['y'], csr_matrix(adjacency_matrix), None, None
-    
-    
     
     if dataset =="IMDB":
         return IMDb()
@@ -139,8 +99,7 @@ def load_data(dataset):
     features[test_idx_reorder, :] = features[test_idx_range, :]
     adj = nx.adjacency_matrix(nx.from_dict_of_lists(graph))
 
-    return adj, features, None, None, None
-
+    return adj, features, None, None, None, None
 def build_karate_club_graph():
     # All 78 edges are stored in two numpy arrays. One for source endpoints
     # while the other for destination endpoints.
@@ -160,7 +119,7 @@ def build_karate_club_graph():
     # Construct a DGLGraph
     adj = sp.csr_matrix((np.ones(u.shape,dtype="float32"),(u,v)))
     feature = sp.csr_matrix(np.ones(adj.shape,dtype="int16"))
-    return adj, feature, None, None, None
+    return adj, feature, None, None, None, None
 
 def AMiner():
     ob = []
@@ -173,7 +132,7 @@ def AMiner():
 
     feature = ob[1].tocsr()
     to_ = math.floor(adj.shape[0]*.4)
-    return adj, feature, None, None, None
+    return adj, feature, None, None, None, None
 
 
 def facebook_egoes__dataset():
@@ -189,7 +148,7 @@ def facebook_egoes__dataset():
     with open("data/facebook_circle_dict.pickle", 'rb') as f:
             circules = pkl.load(f)
 
-    return adj, feature, None , None, circules
+    return adj, feature, None , None, circules, None
 #
 
 def IMDb():
@@ -225,7 +184,7 @@ def IMDb():
     feature = sp.csr_matrix(obj[0])
 
 
-    return adj, feature, node_label, edge_labels, None
+    return adj, feature, node_label, edge_labels, None, None
 
 
 def IMDB_PyG():
@@ -276,7 +235,11 @@ def IMDB_PyG():
         'edge_type_encoding': edge_type_encoding,
     }
 
-    return adj, features, labels, edge_labels, circles, mapping_details
+
+
+    features_with_labels = np.array(features.todense()[:mapping_details['node_type_to_index_map']['movie'][1]])
+    _, important_feat_ids = reduce_node_features(features_with_labels, labels, random_seed = 0)
+    return adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids
 
 
 
@@ -318,7 +281,7 @@ def DBLP():
     feature = sp.csr_matrix(obj[0])
 
 
-    return adj, feature, node_label, edge_labels, None
+    return adj, feature, node_label, edge_labels, None, None
 
 def ACM():
     obj = []
@@ -356,7 +319,7 @@ def ACM():
 
     index = -1
 
-    return adj, feature, node_label, edge_labels, None
+    return adj, feature, node_label, edge_labels, None, None
 # def ACM():
 #     obj = []
 #
@@ -416,7 +379,7 @@ def facebook_pages():
         obj.append(pkl.load(f))
     feature = sp.csr_matrix(obj[0])
 
-    return adj, feature, node_label, None, None
+    return adj, feature, node_label, None, None, None
 
 def NELL():
     A = []
@@ -438,7 +401,70 @@ def NELL():
     index = np.where(adj.sum(0) > 0)
 
 
-    return adj[index[1]][:,index[1]], feature[index[1],: ], None, None, None
+    return adj[index[1]][:,index[1]], feature[index[1],: ], None, None, None, None
+
+
+
+def acm_homogenized():
+    ds = torch.load("../VGAE/db/acm.pt")
+    ds['y'] =torch.tensor(ds['y'])
+    num_nodes = ds['y'].shape[0]
+    adjacency_matrix = np.zeros((num_nodes, num_nodes))
+
+    # Iterate over the edge index and fill in the adjacency matrix
+    edge_index = ds['edge_index']
+    for i in range(edge_index.shape[1]):
+        start_node = edge_index[0, i].item()
+        end_node = edge_index[1, i].item()
+        adjacency_matrix[start_node, end_node] = 1
+        adjacency_matrix[end_node, start_node] = 1  # For und
+    
+    features = csr_matrix(ds['x'].numpy())
+    label = ds['y']
+    _, important_feat_ids = reduce_node_features(np.array(features.todense()), label, 0)
+    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids
+    
+        
+    
+def citeseer():
+    ds = Planetoid("\..", "citeseer")[0]
+    num_nodes = ds['y'].shape[0]
+    adjacency_matrix = np.zeros((num_nodes, num_nodes))
+
+    # Iterate over the edge index and fill in the adjacency matrix
+    edge_index = ds['edge_index']
+    for i in range(edge_index.shape[1]):
+        start_node = edge_index[0, i].item()
+        end_node = edge_index[1, i].item()
+        adjacency_matrix[start_node, end_node] = 1
+        adjacency_matrix[end_node, start_node] = 1  # For und
+    
+    features = csr_matrix(ds['x'].numpy())
+    label = ds['y']
+    _, important_feat_ids = reduce_node_features(np.array(features.todense()), label, 0)
+    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids
+
+
+def cora():
+    ds = Planetoid("\..", "cora")[0]
+    num_nodes = ds['y'].shape[0]
+    adjacency_matrix = np.zeros((num_nodes, num_nodes))
+
+    # Iterate over the edge index and fill in the adjacency matrix
+    edge_index = ds['edge_index']
+    for i in range(edge_index.shape[1]):
+        start_node = edge_index[0, i].item()
+        end_node = edge_index[1, i].item()
+        adjacency_matrix[start_node, end_node] = 1
+        adjacency_matrix[end_node, start_node] = 1  # For und
+    
+    features = csr_matrix(ds['x'].numpy())
+    label = ds['y']
+    _, important_feat_ids = reduce_node_features(np.array(features.todense()), label, 0)
+    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids
+
+    
+
 
 if __name__ == '__main__':
     # NELL()
