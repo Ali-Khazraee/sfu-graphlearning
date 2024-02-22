@@ -4,7 +4,7 @@ start_time = time.monotonic()
 import dgl
 import classification as CL
 from input_data import load_data
-from mask_test_edges import mask_test_edges_new, roc_auc_estimator,mask_test_edges,mask_test_edges_new
+from mask_test_edges import mask_test_edges_new, roc_auc_estimator, mask_test_edges, mask_test_edges_new
 import plotter
 import argparse
 from utils import *
@@ -38,10 +38,10 @@ parser = argparse.ArgumentParser(description='VGAE Framework')
 parser.add_argument('-e', dest="epoch_number", type=int, default=101, help="Number of Epochs")
 parser.add_argument('-v', dest="Vis_step", type=int, default=20, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
-parser.add_argument('-dataset', dest="dataset", default="acm",
+parser.add_argument('-dataset', dest="dataset", default="IMDB-PyG",
                     help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM")
 parser.add_argument('-hemogenize', dest="hemogenize", default=False, help="either withhold the layers (edges types) during training or not")
-parser.add_argument('-NofCom', dest="num_of_comunities",type=int, default=64,
+parser.add_argument('-NofCom', dest="num_of_comunities", type=int, default=64,
                     help="Dimention of Z, i.e len(Z[0]), in the bottleNEck")
 parser.add_argument('-encoder_layers', dest="encoder_layers", default="64", type=str,
                     help="a list in which each element determine the gcn size; Note: the last layer size is determine with -NofCom")
@@ -123,7 +123,7 @@ class GVAE_FrameWork(torch.nn.Module):
 
     def forward(self, adj, x):
         z, m_z, std_z = self.inference(adj, x)
-        generated_adj = self.generator(z,x)
+        generated_adj = self.generator(z, x)
         generated_x = self.feat_generator(z)
         generated_label = self.label_decoder(z)
         return std_z, m_z, z, generated_adj, generated_x, generated_label
@@ -137,15 +137,15 @@ class GVAE_FrameWork(torch.nn.Module):
     def generator(self, z, x):
         adj = self.decoder(z)
         return adj
-    
-    def feat_generator(self,z):
+
+    def feat_generator(self, z):
         x = self.node_feat_decoder(z)
         return x
 
     def reparameterize(self, mean, std):
         eps = torch.randn_like(std)
         return eps.mul(std).add(mean)
-    
+
 
 # ************************************************************
 
@@ -168,7 +168,7 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred
     'start edit'
     
     ground_truth = [tensor.item() for tensor in ground_truth]
-    
+
     std_dev = np.std(ground_truth)
     for i in range(len(ground_truth)):
         ground_truth[i] = ground_truth[i] / std_dev
@@ -188,21 +188,22 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred
         val_recons_loss = reconstruction_loss[:, val_edge_idx[0], val_edge_idx[1]].mean()
 
     # some edges wont have reconstruciton losss
-    if indexes_to_ignore and  len(indexes_to_ignore)>0:
-        reconstruction_loss[:,indexes_to_ignore[0], indexes_to_ignore[1]]= 0  # masking edges
+    if indexes_to_ignore and len(indexes_to_ignore) > 0:
+        reconstruction_loss[:, indexes_to_ignore[0], indexes_to_ignore[1]] = 0  # masking edges
 
     reconstruction_loss = reconstruction_loss.mean()
 
 
-    #KL divergence
-    kl_loss = (-0.5 / num_nodes) * torch.mean(torch.sum(1 + 2 * torch.log(std_z) - mean_z.pow(2) - (std_z).pow(2), dim=1))
-    feat_loss = torch.nn.functional.mse_loss(x_pred, x_true)    
+    # KL divergence
+    kl_loss = (-0.5 / num_nodes) * torch.mean(
+        torch.sum(1 + 2 * torch.log(std_z) - mean_z.pow(2) - (std_z).pow(2), dim=1))
+    feat_loss = torch.nn.functional.mse_loss(x_pred, x_true)
 
     # label loss
     not_masked_labels = torch.where(gt_labels != -1)[0]
     criterion = nn.CrossEntropyLoss()
     label_loss = criterion(predicted_node_labels[not_masked_labels,:], gt_labels[not_masked_labels])
-    
+
 
     acc = (torch.sigmoid(pred).round() == labels).sum() / float(pred.shape[0] * pred.shape[1]*pred.shape[2]) # accuracy on the train data
     motif_loss = 0
@@ -231,7 +232,7 @@ if subgraph_size == -1:
 elemnt = min(original_adj.shape[-1], subgraph_size)
 indexes = list(range(original_adj.shape[-1]))
 
-#-----------------------------------------
+# -----------------------------------------
 # # adj , feature matrix and  node labels  permutaion
 # np.random.shuffle(indexes)
 # indexes = indexes[:elemnt]
@@ -252,7 +253,7 @@ indexes = list(range(original_adj.shape[-1]))
 #             shuffles_cir[indexes.index(ego_node)] = [[indexes.index(x) for x in circule_list] for circule_list in
 #                                                      circule_lists]
 #         circles = shuffles_cir
-#-----------------------------------------
+# -----------------------------------------
 
 # instead of X used I if the switch is on
 if use_feature == False:
@@ -268,44 +269,45 @@ else:
     adj_train = original_adj
 
 # I use this mudule to plot error and loss
-pltr = plotter.Plotter(functions=["loss", "adj_Recons Loss","feature_Rec Loss", "KL",])
+pltr = plotter.Plotter(functions=["loss", "adj_Recons Loss", "feature_Rec Loss", "KL", ])
 
 
 
-num_obs = 1 #number of relateion; default is hemogenous dataset with one type of edge
+num_obs = 1  # number of relateion; default is hemogenous dataset with one type of edge
 if hemogenized != True:
     edge_relType_train = edge_labels.multiply(adj_train)
     rel_type = np.unique(edge_labels.data)
-    num_obs = len(rel_type) # number of relateion; heterougenous setting
+    num_obs = len(rel_type)  # number of relateion; heterougenous setting
     # edge_relType = edge_relType + sp.eye(adj_train.shape[-1]) * (len(np.unique(edge_relType.data)) + 1)
     graph_dgl = []
 
-    train_matrix =[]
+    train_matrix = []
     for rel_num in rel_type:
         tm_mtrix = csr_matrix(edge_relType_train.shape)
         tm_mtrix[edge_relType_train == (rel_num)] = 1
         tr_matrix = tm_mtrix + sp.eye(adj_train.shape[-1])
         train_matrix.append(tr_matrix.todense())
 
-        graph_dgl.append(dgl.graph((list(tm_mtrix.nonzero()[0]), list(tm_mtrix.nonzero()[1])),num_nodes=adj_train.shape[0]))
+        graph_dgl.append(
+            dgl.graph((list(tr_matrix.nonzero()[0]), list(tr_matrix.nonzero()[1])), num_nodes=adj_train.shape[0]))
 
-    train_matrix = [ torch.tensor(mtrix) for mtrix in  train_matrix]
+    train_matrix = [torch.tensor(mtrix) for mtrix in train_matrix]
     adj_train = torch.stack(train_matrix)
 
     # add the self loop; ToDO: Not the best approach
     graph_dgl.append(
         dgl.graph((list(range(adj_train.shape[-1])), list(range(adj_train.shape[-1]))), num_nodes=adj_train.shape[-1]))
 
-
-    categorized_val_edges_pos, categorized_val_edges_neg = categorize(val_edges_poitive,val_edges_negative, edge_labels)
+    categorized_val_edges_pos, categorized_val_edges_neg = categorize(val_edges_poitive, val_edges_negative,
+                                                                      edge_labels)
     # graph_dgl.append(dgl.from_scipy(adj_train))
 else:
     adj_train = adj_train + sp.eye(adj_train.shape[0])  # the library does not add self-loops
     graph_dgl = dgl.from_scipy(adj_train)
-    adj_train = torch.tensor(adj_train.todense())  #Todo: use sparse matix
-    adj_train = torch.unsqueeze(adj_train,0)
-    categorized_val_edges_pos = {1:val_edges_poitive}
-    categorized_val_edges_neg= {1:val_edges_negative}
+    adj_train = torch.tensor(adj_train.todense())  # Todo: use sparse matix
+    adj_train = torch.unsqueeze(adj_train, 0)
+    categorized_val_edges_pos = {1: val_edges_poitive}
+    categorized_val_edges_neg = {1: val_edges_negative}
 
 
 
@@ -316,27 +318,29 @@ if (type(features) == np.ndarray):
 else:
     features = torch.tensor(features.todense(), dtype=torch.float32)
 
-#-----------------------------------------
+# -----------------------------------------
 # initialize the model
-#-----------------------------------------
+# -----------------------------------------
 # Check for Encoder and redirect to appropriate function
 if encoder == "GCN_Encoder":
     encoder_model = GCN_Encoder(in_feature=features.shape[1],
-                                    latent_dim=num_of_comunities, layers=encoder_layers, DropOut_rate=DropOut_rate)
+                                latent_dim=num_of_comunities, layers=encoder_layers, DropOut_rate=DropOut_rate)
 # add your encoder
 # e.g elif: myEncoder = encoder()
 
-elif encoder=="RGCN_Encoder":
-    encoder_model = RGCN_Encoder(in_feature=features.shape[1],num_relation=len(adj_train),
-                                latent_dim=num_of_comunities, layers=encoder_layers, DropOut_rate=DropOut_rate)
+elif encoder == "RGCN_Encoder":
+    encoder_model = RGCN_Encoder(in_feature=features.shape[1], num_relation=len(graph_dgl),
+                                 latent_dim=num_of_comunities, layers=encoder_layers, DropOut_rate=DropOut_rate)
 else:
     raise Exception("Sorry, this Encoder is not Impemented; check the input args")
 
 # Check for Decoder and redirect to appropriate function
 # if decoder == ""
 if decoder == "MultiRelational_SBM":
-    decoder_model = MultiRelational_SBM_decoder( number_of_rel =adj_train.shape[0], Lambda_dim = num_of_comunities, in_dim=num_of_comunities, normalize = batch_norm, DropOut_rate =DropOut_rate)
-elif decoder == "InnerProductDecoder": # Kipf
+    decoder_model = MultiRelational_SBM_decoder(number_of_rel=adj_train.shape[0], Lambda_dim=num_of_comunities,
+                                                in_dim=num_of_comunities, normalize=batch_norm,
+                                                DropOut_rate=DropOut_rate)
+elif decoder == "InnerProductDecoder":  # Kipf
     decoder_model = InnerProductDecoder()
 else:
     raise Exception("Sorry, this Decoder is not Impemented; check the input args")
@@ -348,12 +352,13 @@ model = GVAE_FrameWork(encoder=encoder_model,
                        decoder=decoder_model,
                        node_feat_decoder = feature_decoder_model,
                        label_decoder = label_decoder_model)  # parameter namimng, it should be dimentionality of distriburion
-#-----------------------------------------
-#-----------------------------------------
+# -----------------------------------------
+# -----------------------------------------
 optimizer = torch.optim.Adam(model.parameters(), lr)
 
-pos_wight = torch.true_divide((adj_train.shape[0] *adj_train.shape[1]*adj_train.shape[2] - torch.sum(adj_train)), torch.sum(
-    adj_train))  # addrressing imbalance data problem: ratio between positve to negative instance
+pos_wight = torch.true_divide((adj_train.shape[0] * adj_train.shape[1] * adj_train.shape[2] - torch.sum(adj_train)),
+                              torch.sum(
+                                  adj_train))  # addrressing imbalance data problem: ratio between positve to negative instance
 
 norm = torch.true_divide(adj_train.shape[-1] * adj_train.shape[-1],
                          ((adj_train.shape[-1] * adj_train.shape[-1] - torch.sum(adj_train)) * 2))
@@ -377,7 +382,7 @@ for epoch in range(epoch_number):
     std_z, m_z, z, reconstructed_adj_logit, reconstructed_x, reconstructed_labels = model(graph_dgl, features)
     
     'start edit'
-    
+
     reconstructed_adjacency = torch.sigmoid(reconstructed_adj_logit)
     
 
@@ -458,19 +463,19 @@ for epoch in range(epoch_number):
     loss.backward()
     optimizer.step()
 
-    #-------------------------------------------
+    # -------------------------------------------
     # batch detail
     # print some metrics
     print("Epoch: {:03d} | Loss: {:05f} | adj_Reconstruction_loss: {:05f} | z_kl_loss: {:05f} |".format(
         epoch + 1, loss.item(), adj_reconstruction_loss.item(), z_kl.item()),"Feature_Reconstruction_loss: {:05f} |".format(feat_loss.item()), "Acuuracy: {:05f} |".format(acc), "Val_adj_Reconstruction_loss: {:05f}".format(adj_val_recons_loss))
-    #------------------------------------------
+    # ------------------------------------------
     print("label loss: ", label_loss.item())
     # Evaluate the model on the validation and plot the loss at every visulizer_step
     if epoch % visulizer_step == 0:
         pltr.redraw()
         model.eval()
         reconstructed_adj = torch.sigmoid(reconstructed_adj_logit)
-        utils.Link_prection_eval(categorized_val_edges_pos, categorized_val_edges_neg ,
+        utils.Link_prection_eval(categorized_val_edges_pos, categorized_val_edges_neg,
                                                             reconstructed_adj.detach().numpy(), edge_labels)
         model.train()
 # save the loss plot in current dir
