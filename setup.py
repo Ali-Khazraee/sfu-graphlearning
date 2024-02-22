@@ -8,7 +8,7 @@ import torch
 
 
 def setup_function(db_name):
-    db = db_name = "imdb_new"
+    db = db_name
     host_name = 'database-1.cxcqxpvbnnwo.us-east-2.rds.amazonaws.com'
     user_name = "admin"
     password_name = "newPassword"

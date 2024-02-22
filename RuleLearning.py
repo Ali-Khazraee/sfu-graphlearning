@@ -38,7 +38,7 @@ parser = argparse.ArgumentParser(description='VGAE Framework')
 parser.add_argument('-e', dest="epoch_number", type=int, default=101, help="Number of Epochs")
 parser.add_argument('-v', dest="Vis_step", type=int, default=20, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
-parser.add_argument('-dataset', dest="dataset", default="IMDB-PyG",
+parser.add_argument('-dataset', dest="dataset", default="acm",
                     help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM")
 parser.add_argument('-hemogenize', dest="hemogenize", default=False, help="either withhold the layers (edges types) during training or not")
 parser.add_argument('-NofCom', dest="num_of_comunities",type=int, default=64,
@@ -205,9 +205,9 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred
     
 
     acc = (torch.sigmoid(pred).round() == labels).sum() / float(pred.shape[0] * pred.shape[1]*pred.shape[2]) # accuracy on the train data
+    motif_loss = 0
     print(motif_loss)
     return kl_loss, reconstruction_loss, feat_loss , acc, val_recons_loss , motif_loss, label_loss
-
 
 # ============================================================
 # The main procedure
@@ -224,7 +224,7 @@ else:
         features_with_labels = np.array(features.todense()[:map_dic['node_type_to_index_map']['movie'][1]])
         _, important_feat_ids = reduce_node_features(features_with_labels, node_label, random_seed = 0)
     else:
-        _, important_feat_ids = reduce_node_features(np.array(features), node_label, 0)
+        _, important_feat_ids = reduce_node_features(np.array(features.todense()), node_label, 0)
 # shuffling the data, and selecting a subset of it; subgraph_size is used to do the ecperimnet on the samller dataset to insclease development speed
 if subgraph_size == -1:
     subgraph_size = original_adj.shape[-1]
@@ -380,35 +380,38 @@ for epoch in range(epoch_number):
     
     reconstructed_adjacency = torch.sigmoid(reconstructed_adj_logit)
     
-    edge_encoding_to_node_types = {v: k for k, v in map_dic['edge_type_encoding'].items()}
-    filtered_reconstruct_adj = []
-    
-    for idx, adj_matrix in enumerate(reconstructed_adjacency):
-        node_types = edge_encoding_to_node_types[idx + 1]  
-        src_type, dst_type = node_types
 
-        src_start, src_end = map_dic['node_type_to_index_map'][src_type]
-        dst_start, dst_end = map_dic['node_type_to_index_map'][dst_type]
-
-
-        filtered_matrix = adj_matrix[src_start:src_end, dst_start:dst_end]
-
-
-        filtered_reconstruct_adj.append(filtered_matrix)
-    
-    filtered_reconstruct_adj_tensors = [torch.tensor(matrix).to('cuda:0') for matrix in filtered_reconstruct_adj]
-    
-    
-    for filtered_matrix in filtered_reconstruct_adj_tensors:
-        filtered_shape = filtered_matrix.shape 
-    
-        for key, matrix in matrices.items():
-            if matrix.shape == filtered_shape:
-                matrices[key] = filtered_matrix
-                break
-            
 
     if dataset == "IMDB-PyG":
+        edge_encoding_to_node_types = {v: k for k, v in map_dic['edge_type_encoding'].items()}
+        filtered_reconstruct_adj = []
+        
+        for idx, adj_matrix in enumerate(reconstructed_adjacency):
+            node_types = edge_encoding_to_node_types[idx + 1]  
+            src_type, dst_type = node_types
+
+            src_start, src_end = map_dic['node_type_to_index_map'][src_type]
+            dst_start, dst_end = map_dic['node_type_to_index_map'][dst_type]
+
+
+            filtered_matrix = adj_matrix[src_start:src_end, dst_start:dst_end]
+
+
+            filtered_reconstruct_adj.append(filtered_matrix)
+        
+        filtered_reconstruct_adj_tensors = [torch.tensor(matrix).to('cuda:0') for matrix in filtered_reconstruct_adj]
+        
+        
+        for filtered_matrix in filtered_reconstruct_adj_tensors:
+            filtered_shape = filtered_matrix.shape 
+        
+            for key, matrix in matrices.items():
+                if matrix.shape == filtered_shape:
+                    matrices[key] = filtered_matrix
+                    break
+                
+        
+        
         movie_reconstructed_x = reconstructed_x[:map_dic['node_type_to_index_map']['movie'][1]]        
         reconstructed_x_important_feats = movie_reconstructed_x[:,important_feat_ids]
         for i in range(1, len(important_feat_ids)+1):
@@ -418,11 +421,24 @@ for epoch in range(epoch_number):
             entities['movies'][feature_name] = tensor_to_assign
         
         # only use labels of the movies
+       
         reconstructed_labels = reconstructed_labels[:map_dic['node_type_to_index_map']['movie'][1]]
     
         entities['movies']['label'] = torch.argmax(reconstructed_labels, dim=1)
     
-    
+    else:
+        
+        x_recon_important_feats = reconstructed_x[:,important_feat_ids]
+
+        for i in range(1, len(important_feat_ids)+1):
+            feature_name = f'feature_{i}'
+        
+            tensor_to_assign = ((x_recon_important_feats[:, i-1]) > 0.5).int().cpu().numpy()
+            entities['nodes_table'][feature_name] = tensor_to_assign
+        
+        predicted_labels = torch.argmax(reconstructed_labels, dim=1)
+        entities['nodes_table']['label'] = predicted_labels.cpu().detach().numpy()
+        matrices['edges_table'] = reconstructed_adjacency[0].to('cuda:0')
         
             
     predicted = iteration_function(rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities)
@@ -432,7 +448,7 @@ for epoch in range(epoch_number):
             
     # compute loss and accuracy
     z_kl, adj_reconstruction_loss,feat_loss, acc, adj_val_recons_loss, motif_loss, label_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm,reconstructed_x,features,ground_truth, predicted, reconstructed_labels, gt_labels,  ignore_edges_inx, val_edge_idx)
-    loss = adj_reconstruction_loss+ feat_loss + z_kl + motif_loss + label_loss
+    loss = adj_reconstruction_loss+ feat_loss + z_kl + torch.tensor(motif_loss )+ label_loss
 
     # record the loss; to be ploted
     pltr.add_values(epoch, [ loss.item() ,adj_reconstruction_loss.item(), feat_loss.item(), z_kl.item()], [None,adj_val_recons_loss.item(), None, None], redraw=False)  # plotter.Plotter(functions=["loss", "adj_Recons Loss","feature_Rec Loss", "KL",])

@@ -59,7 +59,7 @@ if torch.cuda.is_available():
 dataset = Planetoid("\..", "cora")
 # dataset = Amazon("\..", "photo")
 dataa = dataset[0]
-# dataa = torch.load("db/imdb.pt")
+dataa = torch.load("db/acm.pt")
 
 
 data_bi = dataa
@@ -76,7 +76,7 @@ db_params = {
     'host': 'database-1.cxcqxpvbnnwo.us-east-2.rds.amazonaws.com',
     'user': 'admin', 
     'password': 'newPassword', 
-    'db':'cora' 
+    'db':'acm' 
 }
 
 connection = connect(**db_params)

@@ -90,8 +90,8 @@ cursor.execute("CREATE DATABASE IF NOT EXISTS %s" %(db_params['db']))
 cursor.execute("USE %s" %(db_params['db']))
 
 cursor.execute("""
-CREATE TABLE IF NOT EXISTS movies_table (
-    node_id INT PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS movies (
+    movie_id INT PRIMARY KEY,
     feature_1 FLOAT,
     feature_2 FLOAT,
     feature_3 FLOAT,
@@ -104,38 +104,39 @@ CREATE TABLE IF NOT EXISTS movies_table (
 
 
 cursor.execute("""
-CREATE TABLE IF NOT EXISTS actors_table (
-    node_id INT PRIMARY KEY
+CREATE TABLE IF NOT EXISTS actors (
+    actor_id INT PRIMARY KEY
 )
 """)
 
 
 cursor.execute("""
-CREATE TABLE IF NOT EXISTS directors_table (
-    node_id INT PRIMARY KEY
+CREATE TABLE IF NOT EXISTS directors (
+    director_id INT PRIMARY KEY
 )
 """)
 
 
 cursor.execute("""
-    CREATE TABLE IF NOT EXISTS movies_directors_table (
-        source_node_id INT,
-        target_node_id INT,
-        PRIMARY KEY (source_node_id, target_node_id),
-        FOREIGN KEY (source_node_id) REFERENCES movies_table(node_id),
-        FOREIGN KEY (target_node_id) REFERENCES directors_table(node_id)
+    CREATE TABLE IF NOT EXISTS movies_directors (
+        movie_id INT,
+        director_id INT,
+        PRIMARY KEY (movie_id, director_id),
+        FOREIGN KEY (movie_id) REFERENCES movies(movie_id),
+        FOREIGN KEY (director_id) REFERENCES directors(director_id)
     )
 """)
 
 
 
+
 cursor.execute("""
-    CREATE TABLE IF NOT EXISTS movies_actors_table (
-        source_node_id INT,
-        target_node_id INT,
-        PRIMARY KEY (source_node_id, target_node_id),
-        FOREIGN KEY (source_node_id) REFERENCES movies_table(node_id),
-        FOREIGN KEY (target_node_id) REFERENCES actors_table(node_id)
+    CREATE TABLE IF NOT EXISTS movies_actors (
+        movie_id INT,
+        actor_id INT,
+        PRIMARY KEY (movie_id, actor_id),
+        FOREIGN KEY (movie_id) REFERENCES movies(movie_id),
+        FOREIGN KEY (actor_id) REFERENCES actors(actor_id)
     )
 """)
 
@@ -145,7 +146,7 @@ for i, features in enumerate(x_reduced):
     # Convert tensor values to Python floats
     feature_values = [float(val) for val in features]
     
-    cursor.execute("INSERT INTO movies_table (node_id, feature_1, feature_2, feature_3, feature_4, feature_5, label) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+    cursor.execute("INSERT INTO movies (movie_id, feature_1, feature_2, feature_3, feature_4, feature_5, label) VALUES (%s, %s, %s, %s, %s, %s, %s)",
                     (i, *feature_values,float(dataa['movie']['y'][i])))
 
 print("Done adding to movies_table")
@@ -155,7 +156,7 @@ print("Done adding to movies_table")
 # Insert nodes into actors_table
 for i in range(dataa['actor']['x'].shape[0]):
 
-    cursor.execute("INSERT INTO actors_table (node_id) VALUES (%s)",(i))
+    cursor.execute("INSERT INTO actors (actor_id) VALUES (%s)",(i))
 
 print("Done adding to actors_table")
 
@@ -164,7 +165,7 @@ print("Done adding to actors_table")
 # Insert nodes into directors_table
 for i in range(dataa['director']['x'].shape[0]):
 
-    cursor.execute("INSERT INTO directors_table (node_id) VALUES (%s)",(i))
+    cursor.execute("INSERT INTO directors (director_id) VALUES (%s)",(i))
 
 print("Done adding to directors_table")
 
@@ -172,15 +173,15 @@ print("Done adding to directors_table")
 
 # Insert edges into movies_actors_table
 edge_index = dataa.edge_index_dict[('movie', 'to', 'actor')]
-for edge in edge_index:
-    cursor.execute("INSERT INTO movies_actors_table (source_node_id, target_node_id) VALUES (%s, %s)", (edge[0], edge[1]))
+for i in range(edge_index[0].shape[0]):
+    cursor.execute("INSERT INTO movies_actors (movie_id, actor_id) VALUES (%s, %s)", (edge_index[0][i].item(),edge_index[1][i].item()))
 
 print("Done adding to movies_actors_table")
 
 # Insert edges into movies_directors_table
 edge_index = dataa.edge_index_dict[('movie', 'to', 'director')]
-for edge in edge_index:
-    cursor.execute("INSERT INTO movies_directors_table (source_node_id, target_node_id) VALUES (%s, %s)", (edge[0], edge[1]))
+for i in range(edge_index[0].shape[0]):
+    cursor.execute("INSERT INTO movies_directors (movie_id, director_id) VALUES (%s, %s)",( edge_index[0][i].item(), edge_index[1][i].item()))
 
 
 print("Done adding to movie_directors_table")

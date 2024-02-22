@@ -9,6 +9,8 @@ import math
 from  Synthatic_graph_generator import Synthetic_data
 from scipy.sparse import csr_matrix
 from torch_geometric.datasets import IMDB
+from torch_geometric.datasets import Amazon, Planetoid
+
 
 def parse_index_file(filename):
     index = []
@@ -20,6 +22,60 @@ def parse_index_file(filename):
 def load_data(dataset):
     """the method will return adjacncy matrix, node features, nodes label, edges label and circules.
       None in case the data set does not come with the information"""
+    
+    if dataset == "cora":
+        ds = Planetoid("\..", "cora")[0]
+        num_nodes = ds['y'].shape[0]
+        adjacency_matrix = np.zeros((num_nodes, num_nodes))
+
+        # Iterate over the edge index and fill in the adjacency matrix
+        edge_index = ds['edge_index']
+        for i in range(edge_index.shape[1]):
+            start_node = edge_index[0, i].item()
+            end_node = edge_index[1, i].item()
+            adjacency_matrix[start_node, end_node] = 1
+            adjacency_matrix[end_node, start_node] = 1  # For und
+        
+        features = csr_matrix(ds['x'].numpy())
+        return csr_matrix(adjacency_matrix),features, ds['y'], csr_matrix(adjacency_matrix), None, None
+ 
+    
+    if dataset == "citeseer":
+        ds = Planetoid("\..", "citeseer")[0]
+        num_nodes = ds['y'].shape[0]
+        adjacency_matrix = np.zeros((num_nodes, num_nodes))
+
+        # Iterate over the edge index and fill in the adjacency matrix
+        edge_index = ds['edge_index']
+        for i in range(edge_index.shape[1]):
+            start_node = edge_index[0, i].item()
+            end_node = edge_index[1, i].item()
+            adjacency_matrix[start_node, end_node] = 1
+            adjacency_matrix[end_node, start_node] = 1  # For und
+        
+        features = csr_matrix(ds['x'].numpy())
+        return csr_matrix(adjacency_matrix),features, ds['y'], csr_matrix(adjacency_matrix), None, None
+    
+    if dataset == "acm":
+
+        ds = torch.load("../VGAE/db/acm.pt")
+        ds['y'] =torch.tensor(ds['y'])
+        num_nodes = ds['y'].shape[0]
+        adjacency_matrix = np.zeros((num_nodes, num_nodes))
+
+        # Iterate over the edge index and fill in the adjacency matrix
+        edge_index = ds['edge_index']
+        for i in range(edge_index.shape[1]):
+            start_node = edge_index[0, i].item()
+            end_node = edge_index[1, i].item()
+            adjacency_matrix[start_node, end_node] = 1
+            adjacency_matrix[end_node, start_node] = 1  # For und
+        
+        features = csr_matrix(ds['x'].numpy())
+        return csr_matrix(adjacency_matrix),features, ds['y'], csr_matrix(adjacency_matrix), None, None
+    
+    
+    
     if dataset =="IMDB":
         return IMDb()
     if dataset =="IMDB-PyG":
