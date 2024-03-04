@@ -184,7 +184,7 @@ def IMDb():
     feature = sp.csr_matrix(obj[0])
 
 
-    return adj, feature, node_label, edge_labels, None, None
+    return adj, feature, node_label, edge_labels, None, None, None, None
 
 
 def IMDB_PyG():
@@ -226,7 +226,7 @@ def IMDB_PyG():
         edge_labels[src_indices_global, dst_indices_global] = edge_code
 
     features = np.vstack([heterodata[node_type].x.numpy() for node_type in heterodata.node_types])
-    features = csr_matrix(features)
+   
     
     circles = None
 
@@ -237,9 +237,12 @@ def IMDB_PyG():
 
 
 
-    features_with_labels = np.array(features.todense()[:mapping_details['node_type_to_index_map']['movie'][1]])
+    features_with_labels = np.array(features[:mapping_details['node_type_to_index_map']['movie'][1]])
     _, important_feat_ids = reduce_node_features(features_with_labels, labels, random_seed = 0)
-    return adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids
+    important_feats = features[:, important_feat_ids]
+    feats_for_reconstruction = torch.where(important_feats >= 1, 1, 0)
+    features = csr_matrix(features)
+    return adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction
 
 
 
@@ -319,7 +322,7 @@ def ACM():
 
     index = -1
 
-    return adj, feature, node_label, edge_labels, None, None
+    return adj, feature, node_label, edge_labels, None, None, None, None
 # def ACM():
 #     obj = []
 #
@@ -379,7 +382,7 @@ def facebook_pages():
         obj.append(pkl.load(f))
     feature = sp.csr_matrix(obj[0])
 
-    return adj, feature, node_label, None, None, None
+    return adj, feature, node_label, None, None, None, None
 
 def NELL():
     A = []
@@ -401,7 +404,7 @@ def NELL():
     index = np.where(adj.sum(0) > 0)
 
 
-    return adj[index[1]][:,index[1]], feature[index[1],: ], None, None, None, None
+    return adj[index[1]][:,index[1]], feature[index[1],: ], None, None, None, None, None
 
 
 
@@ -419,10 +422,13 @@ def acm_homogenized():
         adjacency_matrix[start_node, end_node] = 1
         adjacency_matrix[end_node, start_node] = 1  # For und
     
-    features = csr_matrix(ds['x'].numpy())
+    features = ds['x'].numpy()
     label = ds['y']
-    _, important_feat_ids = reduce_node_features(np.array(features.todense()), label, 0)
-    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids
+    _, important_feat_ids = reduce_node_features(np.array(features), label, 0)
+    important_feats = features[:, important_feat_ids]
+    feats_for_reconstruction = np.where(important_feats >= 1, 1, 0)
+    features = csr_matrix(features)
+    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, feats_for_reconstruction
     
         
     
@@ -439,10 +445,13 @@ def citeseer():
         adjacency_matrix[start_node, end_node] = 1
         adjacency_matrix[end_node, start_node] = 1  # For und
     
-    features = csr_matrix(ds['x'].numpy())
+    features = ds['x'].numpy()
     label = ds['y']
-    _, important_feat_ids = reduce_node_features(np.array(features.todense()), label, 0)
-    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids
+    _, important_feat_ids = reduce_node_features(np.array(features), label, 0)
+    important_feats = features[:, important_feat_ids]
+    feats_for_reconstruction = np.where(important_feats >= 1, 1, 0)
+    features = csr_matrix(features)
+    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, feats_for_reconstruction
 
 
 def cora():
@@ -458,10 +467,13 @@ def cora():
         adjacency_matrix[start_node, end_node] = 1
         adjacency_matrix[end_node, start_node] = 1  # For und
     
-    features = csr_matrix(ds['x'].numpy())
+    features = ds['x'].numpy()
     label = ds['y']
-    _, important_feat_ids = reduce_node_features(np.array(features.todense()), label, 0)
-    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids
+    _, important_feat_ids = reduce_node_features(np.array(features), label, 0)
+    important_feats = features[:, important_feat_ids]
+    feats_for_reconstruction = np.where(important_feats >= 1, 1, 0)
+    features = csr_matrix(features)
+    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, feats_for_reconstruction
 
     
 

@@ -38,7 +38,7 @@ parser = argparse.ArgumentParser(description='VGAE Framework')
 parser.add_argument('-e', dest="epoch_number", type=int, default=101, help="Number of Epochs")
 parser.add_argument('-v', dest="Vis_step", type=int, default=20, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
-parser.add_argument('-dataset', dest="dataset", default="acm",
+parser.add_argument('-dataset', dest="dataset", default="cora",
                     help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM")
 parser.add_argument('-hemogenize', dest="hemogenize", default=False, help="either withhold the layers (edges types) during training or not")
 parser.add_argument('-NofCom', dest="num_of_comunities", type=int, default=64,
@@ -219,7 +219,7 @@ if dataset in ('grid', 'community', 'ego', 'lobster'):
     node_label = edge_labels = circles = None
 else:
     synthetic = False
-    original_adj, features, node_label, edge_labels, circles, map_dic, important_feat_ids = load_data(dataset)
+    original_adj, features, node_label, edge_labels, circles, map_dic, important_feat_ids, feats_for_reconstruction= load_data(dataset)
 # shuffling the data, and selecting a subset of it; subgraph_size is used to do the ecperimnet on the samller dataset to insclease development speed
 if subgraph_size == -1:
     subgraph_size = original_adj.shape[-1]

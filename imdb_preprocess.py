@@ -64,6 +64,9 @@ dataa = IMDB("\..")[0]
 
 
 data_bi = dataa
+data_bi['movie']['x'] = torch.where(data_bi['movie']['x'] >= 1, 1, 0)
+data_bi['actor']['x'] = torch.where(data_bi['actor']['x'] >= 1, 1, 0)
+data_bi['director']['x'] = torch.where(data_bi['director']['x'] >= 1, 1, 0)
 x_reduced, important_feats = reduce_node_features(data_bi['movie']['x'], data_bi['movie']['y'], random_seed)
 x_reduced = x_reduced.type(torch.float)
 
@@ -105,14 +108,24 @@ CREATE TABLE IF NOT EXISTS movies (
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS actors (
-    actor_id INT PRIMARY KEY
+    actor_id INT PRIMARY KEY,
+    feature_1 FLOAT,
+    feature_2 FLOAT,
+    feature_3 FLOAT,
+    feature_4 FLOAT,
+    feature_5 FLOAT
 )
 """)
 
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS directors (
-    director_id INT PRIMARY KEY
+    director_id INT PRIMARY KEY,
+    feature_1 FLOAT,
+    feature_2 FLOAT,
+    feature_3 FLOAT,
+    feature_4 FLOAT,
+    feature_5 FLOAT
 )
 """)
 
@@ -152,20 +165,38 @@ for i, features in enumerate(x_reduced):
 print("Done adding to movies_table")
 
 
+# Insert nodes into actors
+for i, features in enumerate(dataa['actor']['x'][:,important_feats ]):
+    # Convert tensor values to Python floats
+    feature_values = [float(val) for val in features]
+    
+    cursor.execute("INSERT INTO actors (actor_id, feature_1, feature_2, feature_3, feature_4, feature_5) VALUES (%s, %s, %s, %s, %s, %s)",
+                    (i, *feature_values))
 
-# Insert nodes into actors_table
-for i in range(dataa['actor']['x'].shape[0]):
 
-    cursor.execute("INSERT INTO actors (actor_id) VALUES (%s)",(i))
+
+# for i in range(dataa['actor']['x'].shape[0]):
+
+#     cursor.execute("INSERT INTO actors (actor_id) VALUES (%s)",(i))
 
 print("Done adding to actors_table")
 
 
+# Insert nodes into actors
+for i, features in enumerate(dataa['director']['x'][:,important_feats ]):
+    # Convert tensor values to Python floats
+    feature_values = [float(val) for val in features]
+    
+    cursor.execute("INSERT INTO directors (director_id, feature_1, feature_2, feature_3, feature_4, feature_5) VALUES (%s, %s, %s, %s, %s, %s)",
+                    (i, *feature_values))
 
-# Insert nodes into directors_table
-for i in range(dataa['director']['x'].shape[0]):
 
-    cursor.execute("INSERT INTO directors (director_id) VALUES (%s)",(i))
+
+
+# # Insert nodes into directors_table
+# for i in range(dataa['director']['x'].shape[0]):
+
+#     cursor.execute("INSERT INTO directors (director_id) VALUES (%s)",(i))
 
 print("Done adding to directors_table")
 
