@@ -93,9 +93,9 @@ synthesis_graphs = {"grid", "community", "lobster", "ego"}
 #============================================================'
 # Tcount ground truth motif
 
-rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities = setup_function(dataset)
+# rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities = setup_function(dataset)
 
-ground_truth = iteration_function(rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities)
+# ground_truth = iteration_function(rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities)
 
 'edit'
 
@@ -165,21 +165,21 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred
     """
     val_recons_loss = None
 
-    'start edit'
+    # 'start edit'
     
-    ground_truth = [tensor.item() for tensor in ground_truth]
+    # ground_truth = [tensor.item() for tensor in ground_truth]
 
-    std_dev = np.std(ground_truth)
-    for i in range(len(ground_truth)):
-        ground_truth[i] = ground_truth[i] / std_dev
+    # std_dev = np.std(ground_truth)
+    # for i in range(len(ground_truth)):
+    #     ground_truth[i] = ground_truth[i] / std_dev
         
-    for i in range(len(ground_truth)):
-        predicted[i] = predicted[i] / std_dev
+    # for i in range(len(ground_truth)):
+    #     predicted[i] = predicted[i] / std_dev
                  
 
-    motif = ((a-b)**2 for a, b in zip(ground_truth, predicted))
-    motif_loss = np.sum(np.fromiter(motif, dtype=float))*(1/len(ground_truth))
-    'end edit'
+    # motif = ((a-b)**2 for a, b in zip(ground_truth, predicted))
+    # motif_loss = np.sum(np.fromiter(motif, dtype=float))*(1/len(ground_truth))
+    # 'end edit'
     
     reconstruction_loss = norm * F.binary_cross_entropy_with_logits(pred, labels, pos_weight=pos_wight, reduction='none')
 
@@ -197,9 +197,10 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred
     # KL divergence
     kl_loss = (-0.5 / num_nodes) * torch.mean(
         torch.sum(1 + 2 * torch.log(std_z) - mean_z.pow(2) - (std_z).pow(2), dim=1))
-    feat_loss = F.binary_cross_entropy_with_logits(x_pred,torch.tensor(x_true.astype(np.float32)))
-    print(feat_loss)
+    feat_loss = F.binary_cross_entropy_with_logits(x_pred,x_true)
+    
 
+    
     # label loss
     not_masked_labels = torch.where(gt_labels != -1)[0]
     criterion = nn.CrossEntropyLoss()
@@ -207,7 +208,8 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred
 
 
     acc = (torch.sigmoid(pred).round() == labels).sum() / float(pred.shape[0] * pred.shape[1]*pred.shape[2]) # accuracy on the train data
-
+    
+    motif_loss = 0
     return kl_loss, reconstruction_loss, feat_loss , acc, val_recons_loss , motif_loss, label_loss
 
 # ============================================================
@@ -340,7 +342,7 @@ elif decoder == "InnerProductDecoder":  # Kipf
 else:
     raise Exception("Sorry, this Decoder is not Impemented; check the input args")
 
-feature_decoder_model = MLPDecoder(num_of_comunities, feats_for_reconstruction.shape[1])
+feature_decoder_model = MLPDecoder(num_of_comunities,features.shape[1])
 label_decoder_model = NodeClassifier(num_of_comunities, np.unique(node_label).shape[0])
 
 model = GVAE_FrameWork(encoder=encoder_model,
@@ -376,82 +378,82 @@ for epoch in range(epoch_number):
 
     std_z, m_z, z, reconstructed_adj_logit, reconstructed_x, reconstructed_labels = model(graph_dgl, features)
     
-    'start edit'
+    # 'start edit'
 
-    reconstructed_adjacency = torch.sigmoid(reconstructed_adj_logit)
+    # reconstructed_adjacency = torch.sigmoid(reconstructed_adj_logit)
     
 
 
-    if dataset == "IMDB-PyG":
-        edge_encoding_to_node_types = {v: k for k, v in map_dic['edge_type_encoding'].items()}
-        filtered_reconstruct_adj = []
+    # if dataset == "IMDB-PyG":
+    #     edge_encoding_to_node_types = {v: k for k, v in map_dic['edge_type_encoding'].items()}
+    #     filtered_reconstruct_adj = []
         
-        for idx, adj_matrix in enumerate(reconstructed_adjacency):
-            node_types = edge_encoding_to_node_types[idx + 1]  
-            src_type, dst_type = node_types
+    #     for idx, adj_matrix in enumerate(reconstructed_adjacency):
+    #         node_types = edge_encoding_to_node_types[idx + 1]  
+    #         src_type, dst_type = node_types
 
-            src_start, src_end = map_dic['node_type_to_index_map'][src_type]
-            dst_start, dst_end = map_dic['node_type_to_index_map'][dst_type]
-
-
-            filtered_matrix = adj_matrix[src_start:src_end, dst_start:dst_end]
+    #         src_start, src_end = map_dic['node_type_to_index_map'][src_type]
+    #         dst_start, dst_end = map_dic['node_type_to_index_map'][dst_type]
 
 
-            filtered_reconstruct_adj.append(filtered_matrix)
+    #         filtered_matrix = adj_matrix[src_start:src_end, dst_start:dst_end]
+
+
+    #         filtered_reconstruct_adj.append(filtered_matrix)
         
-        filtered_reconstruct_adj_tensors = [torch.tensor(matrix).to('cuda:0') for matrix in filtered_reconstruct_adj]
+    #     filtered_reconstruct_adj_tensors = [torch.tensor(matrix).to('cuda:0') for matrix in filtered_reconstruct_adj]
         
         
-        for filtered_matrix in filtered_reconstruct_adj_tensors:
-            filtered_shape = filtered_matrix.shape 
+    #     for filtered_matrix in filtered_reconstruct_adj_tensors:
+    #         filtered_shape = filtered_matrix.shape 
         
-            for key, matrix in matrices.items():
-                if matrix.shape == filtered_shape:
-                    matrices[key] = filtered_matrix
-                    break
+    #         for key, matrix in matrices.items():
+    #             if matrix.shape == filtered_shape:
+    #                 matrices[key] = filtered_matrix
+    #                 break
                 
         
         
-        movie_reconstructed_x = reconstructed_x[:map_dic['node_type_to_index_map']['movie'][1]]        
-        # reconstructed_x_important_feats = movie_reconstructed_x[:,important_feat_ids]
-        reconstructed_x_important_feats = movie_reconstructed_x
-        for i in range(1, len(important_feat_ids)+1):
-            feature_name = f'feature_{i}'
+    #     movie_reconstructed_x = reconstructed_x[:map_dic['node_type_to_index_map']['movie'][1]]        
+    #     reconstructed_x_important_feats = movie_reconstructed_x[:,important_feat_ids]
+    #     for i in range(1, len(important_feat_ids)+1):
+    #         feature_name = f'feature_{i}'
     
-            tensor_to_assign = ((reconstructed_x_important_feats[:, i-1]) > 0.5).int().cpu().numpy()
-            entities['movies'][feature_name] = tensor_to_assign
+    #         tensor_to_assign = ((reconstructed_x_important_feats[:, i-1]) > 0.5).int().cpu().numpy()
+    #         entities['movies'][feature_name] = tensor_to_assign
         
-        # only use labels of the movies
+    #     # only use labels of the movies
        
-        reconstructed_labels = reconstructed_labels[:map_dic['node_type_to_index_map']['movie'][1]]
+    #     reconstructed_labels = reconstructed_labels[:map_dic['node_type_to_index_map']['movie'][1]]
     
-        entities['movies']['label'] = torch.argmax(reconstructed_labels, dim=1)
+    #     entities['movies']['label'] = torch.argmax(reconstructed_labels, dim=1)
     
-    else:
+    # else:
         
-        # x_recon_important_feats = reconstructed_x[:,important_feat_ids]
-        x_recon_important_feats = reconstructed_x
+    #     x_recon_important_feats = reconstructed_x[:,important_feat_ids]
         
 
-        for i in range(1, len(important_feat_ids)+1):
-            feature_name = f'feature_{i}'
+    #     for i in range(1, len(important_feat_ids)+1):
+    #         feature_name = f'feature_{i}'
         
-            tensor_to_assign = ((x_recon_important_feats[:, i-1]) > 0.5).int().cpu().numpy()
-            entities['nodes_table'][feature_name] = tensor_to_assign
+    #         tensor_to_assign = ((x_recon_important_feats[:, i-1]) > 0.5).int().cpu().numpy()
+    #         entities['nodes_table'][feature_name] = tensor_to_assign
         
-        predicted_labels = torch.argmax(reconstructed_labels, dim=1)
-        entities['nodes_table']['label'] = predicted_labels.cpu().detach().numpy()
-        matrices['edges_table'] = reconstructed_adjacency[0].to('cuda:0')
+    #     predicted_labels = torch.argmax(reconstructed_labels, dim=1)
+    #     entities['nodes_table']['label'] = predicted_labels.cpu().detach().numpy()
+    #     matrices['edges_table'] = reconstructed_adjacency[0].to('cuda:0')
         
             
-    predicted = iteration_function(rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities)
+    # predicted = iteration_function(rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities)
 
             
-    'end edit'        
+    # 'end edit'        
             
     # compute loss and accuracy
-    z_kl, adj_reconstruction_loss,feat_loss, acc, adj_val_recons_loss, motif_loss, label_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm,reconstructed_x,feats_for_reconstruction, ground_truth, predicted, reconstructed_labels, gt_labels,  ignore_edges_inx, val_edge_idx)
-    loss = adj_reconstruction_loss+ feat_loss + z_kl + torch.tensor(motif_loss )+ label_loss
+    ground_truth = 0
+    predicted = 0
+    z_kl, adj_reconstruction_loss,feat_loss, acc, adj_val_recons_loss, motif_loss, label_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm,reconstructed_x,features, ground_truth, predicted, reconstructed_labels, gt_labels,  ignore_edges_inx, val_edge_idx)
+    loss = adj_reconstruction_loss + z_kl + torch.tensor(motif_loss )+ label_loss + feat_loss
 
     # record the loss; to be ploted
     pltr.add_values(epoch, [ loss.item() ,adj_reconstruction_loss.item(), feat_loss.item(), z_kl.item()], [None,adj_val_recons_loss.item(), None, None], redraw=False)  # plotter.Plotter(functions=["loss", "adj_Recons Loss","feature_Rec Loss", "KL",])

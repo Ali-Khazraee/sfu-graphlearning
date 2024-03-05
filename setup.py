@@ -8,7 +8,7 @@ import torch
 
 
 def setup_function(db_name):
-    db = db_name 
+    db = db_name = "imdb"
     host_name = 'database-1.cxcqxpvbnnwo.us-east-2.rds.amazonaws.com'
     user_name = "admin"
     password_name = "newPassword"
@@ -281,7 +281,6 @@ def iteration_function(rules, multiples, states, functors, variables, nodes, mas
     counter = 0
     counter_c1 = 0
     motif_list = []
-
     for table in range(len(rules)):
 
         for table_row in values[table]:
