@@ -423,7 +423,7 @@ def acm_homogenized():
         adjacency_matrix[end_node, start_node] = 1  # For und
     
     features = ds['x'].numpy()
-    label = ds['y']
+    label = torch.tensor(ds['y'])
     _, important_feat_ids = reduce_node_features(np.array(features), label, 0)
     important_feats = features[:, important_feat_ids]
     feats_for_reconstruction = np.where(important_feats >= 1, 1, 0)

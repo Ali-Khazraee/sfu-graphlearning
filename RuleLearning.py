@@ -38,7 +38,7 @@ parser = argparse.ArgumentParser(description='VGAE Framework')
 parser.add_argument('-e', dest="epoch_number", type=int, default=101, help="Number of Epochs")
 parser.add_argument('-v', dest="Vis_step", type=int, default=20, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
-parser.add_argument('-dataset', dest="dataset", default="citeseer",
+parser.add_argument('-dataset', dest="dataset", default="acm",
                     help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM")
 parser.add_argument('-hemogenize', dest="hemogenize", default=False, help="either withhold the layers (edges types) during training or not")
 parser.add_argument('-NofCom', dest="num_of_comunities", type=int, default=64,
