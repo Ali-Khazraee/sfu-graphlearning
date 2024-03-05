@@ -39,7 +39,7 @@ class MLPDecoder(torch.nn.Module):
         )
 
     def forward(self, z):
-        return torch.sigmoid(self.layers(z))
+        return self.layers(z)
 
 
 # ************************************************************

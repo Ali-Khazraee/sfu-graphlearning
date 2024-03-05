@@ -38,7 +38,7 @@ parser = argparse.ArgumentParser(description='VGAE Framework')
 parser.add_argument('-e', dest="epoch_number", type=int, default=101, help="Number of Epochs")
 parser.add_argument('-v', dest="Vis_step", type=int, default=20, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
-parser.add_argument('-dataset', dest="dataset", default="cora",
+parser.add_argument('-dataset', dest="dataset", default="citeseer",
                     help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM")
 parser.add_argument('-hemogenize', dest="hemogenize", default=False, help="either withhold the layers (edges types) during training or not")
 parser.add_argument('-NofCom', dest="num_of_comunities", type=int, default=64,
@@ -197,7 +197,8 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred
     # KL divergence
     kl_loss = (-0.5 / num_nodes) * torch.mean(
         torch.sum(1 + 2 * torch.log(std_z) - mean_z.pow(2) - (std_z).pow(2), dim=1))
-    feat_loss = torch.nn.functional.mse_loss(x_pred, x_true)
+    feat_loss = F.binary_cross_entropy_with_logits(x_pred,torch.tensor(x_true.astype(np.float32)))
+    print(feat_loss)
 
     # label loss
     not_masked_labels = torch.where(gt_labels != -1)[0]
@@ -339,7 +340,7 @@ elif decoder == "InnerProductDecoder":  # Kipf
 else:
     raise Exception("Sorry, this Decoder is not Impemented; check the input args")
 
-feature_decoder_model = MLPDecoder(num_of_comunities, features.shape[1])
+feature_decoder_model = MLPDecoder(num_of_comunities, feats_for_reconstruction.shape[1])
 label_decoder_model = NodeClassifier(num_of_comunities, np.unique(node_label).shape[0])
 
 model = GVAE_FrameWork(encoder=encoder_model,
@@ -412,7 +413,8 @@ for epoch in range(epoch_number):
         
         
         movie_reconstructed_x = reconstructed_x[:map_dic['node_type_to_index_map']['movie'][1]]        
-        reconstructed_x_important_feats = movie_reconstructed_x[:,important_feat_ids]
+        # reconstructed_x_important_feats = movie_reconstructed_x[:,important_feat_ids]
+        reconstructed_x_important_feats = movie_reconstructed_x
         for i in range(1, len(important_feat_ids)+1):
             feature_name = f'feature_{i}'
     
@@ -427,7 +429,9 @@ for epoch in range(epoch_number):
     
     else:
         
-        x_recon_important_feats = reconstructed_x[:,important_feat_ids]
+        # x_recon_important_feats = reconstructed_x[:,important_feat_ids]
+        x_recon_important_feats = reconstructed_x
+        
 
         for i in range(1, len(important_feat_ids)+1):
             feature_name = f'feature_{i}'
@@ -446,7 +450,7 @@ for epoch in range(epoch_number):
     'end edit'        
             
     # compute loss and accuracy
-    z_kl, adj_reconstruction_loss,feat_loss, acc, adj_val_recons_loss, motif_loss, label_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm,reconstructed_x,features,ground_truth, predicted, reconstructed_labels, gt_labels,  ignore_edges_inx, val_edge_idx)
+    z_kl, adj_reconstruction_loss,feat_loss, acc, adj_val_recons_loss, motif_loss, label_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm,reconstructed_x,feats_for_reconstruction, ground_truth, predicted, reconstructed_labels, gt_labels,  ignore_edges_inx, val_edge_idx)
     loss = adj_reconstruction_loss+ feat_loss + z_kl + torch.tensor(motif_loss )+ label_loss
 
     # record the loss; to be ploted

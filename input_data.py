@@ -188,7 +188,7 @@ def IMDb():
 
 
 def IMDB_PyG():
-    dataset = IMDB("\..")
+    dataset = IMDB("data/")
     heterodata = dataset[0]
     labels = heterodata['movie']['y']
     # heterodata = torch.load('data/IMDB/heterodata.pt')
@@ -240,7 +240,7 @@ def IMDB_PyG():
     features_with_labels = np.array(features[:mapping_details['node_type_to_index_map']['movie'][1]])
     _, important_feat_ids = reduce_node_features(features_with_labels, labels, random_seed = 0)
     important_feats = features[:, important_feat_ids]
-    feats_for_reconstruction = torch.where(important_feats >= 1, 1, 0)
+    feats_for_reconstruction = np.where(important_feats >= 1, 1, 0)
     features = csr_matrix(features)
     return adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction
 
@@ -433,7 +433,7 @@ def acm_homogenized():
         
     
 def citeseer():
-    ds = Planetoid("\..", "citeseer")[0]
+    ds = Planetoid("data", "citeseer")[0]
     num_nodes = ds['y'].shape[0]
     adjacency_matrix = np.zeros((num_nodes, num_nodes))
 
@@ -455,7 +455,7 @@ def citeseer():
 
 
 def cora():
-    ds = Planetoid("\..", "cora")[0]
+    ds = Planetoid("\data", "cora")[0]
     num_nodes = ds['y'].shape[0]
     adjacency_matrix = np.zeros((num_nodes, num_nodes))
 
