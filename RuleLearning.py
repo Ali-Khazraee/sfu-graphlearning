@@ -36,7 +36,7 @@ parser = argparse.ArgumentParser(description='VGAE Framework')
 parser.add_argument('-e', dest="epoch_number", type=int, default=101, help="Number of Epochs")
 parser.add_argument('-v', dest="Vis_step", type=int, default=20, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
-parser.add_argument('-dataset', dest="dataset", default="IMDB-PyG",
+parser.add_argument('-dataset', dest="dataset", default="citeseer",
                     help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM, IMDB-PyG")
 parser.add_argument('-hemogenize', dest="hemogenize", default=False, help="either withhold the layers (edges types) during training or not")
 parser.add_argument('-NofCom', dest="num_of_comunities", type=int, default=64,
@@ -340,7 +340,7 @@ elif decoder == "InnerProductDecoder":  # Kipf
 else:
     raise Exception("Sorry, this Decoder is not Impemented; check the input args")
 
-feature_decoder_model = MLPDecoder(num_of_comunities,features.shape[1])
+feature_decoder_model = MLPDecoder(num_of_comunities,feats_for_reconstruction.shape[1])
 label_decoder_model = NodeClassifier(num_of_comunities, np.unique(node_label).shape[0])
 
 model = GVAE_FrameWork(encoder=encoder_model,

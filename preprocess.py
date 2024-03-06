@@ -59,7 +59,7 @@ if torch.cuda.is_available():
 # dataset = Planetoid("\..", "citeseer")
 # dataset = Amazon("\..", "photo")
 # dataa = dataset[0]
-dataa = torch.load("../VGAE/db/acm.pt")
+dataa = torch.load("db/acm.pt")
 
 
 data_bi = dataa
