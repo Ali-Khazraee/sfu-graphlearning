@@ -11,6 +11,14 @@ from scipy.sparse import csr_matrix
 from torch_geometric.datasets import IMDB
 from torch_geometric.datasets import Amazon, Planetoid
 from utils import * 
+import random
+
+np.random.seed(0)
+random.seed(0)
+torch.seed()
+torch.manual_seed(0)
+torch.cuda.manual_seed(0)
+
 
 
 def parse_index_file(filename):
@@ -238,12 +246,11 @@ def IMDB_PyG():
 
 
     features_with_labels = np.array(features[:mapping_details['node_type_to_index_map']['movie'][1]])
+    features_with_labels = np.where(features_with_labels >= 1, 1, 0)
     _, important_feat_ids = reduce_node_features(features_with_labels, labels, random_seed = 0)
-    important_feats = features[:, important_feat_ids]
-    feats_for_reconstruction = np.where(important_feats >= 1, 1, 0)
+    feats_for_reconstruction = np.where(features >= 1, 1, 0)
     features = csr_matrix(features)
-    return adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction
-
+    return adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids, torch.tensor(feats_for_reconstruction)
 
 
 
@@ -426,9 +433,9 @@ def acm_homogenized():
     label = torch.tensor(ds['y'])
     _, important_feat_ids = reduce_node_features(np.array(features), label, 0)
     important_feats = features[:, important_feat_ids]
-    feats_for_reconstruction = np.where(important_feats >= 1, 1, 0)
+    feats_for_reconstruction = np.where(features >= 1, 1, 0)
     features = csr_matrix(features)
-    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, feats_for_reconstruction
+    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, torch.tensor(feats_for_reconstruction)
     
         
     
@@ -449,9 +456,9 @@ def citeseer():
     label = ds['y']
     _, important_feat_ids = reduce_node_features(np.array(features), label, 0)
     important_feats = features[:, important_feat_ids]
-    feats_for_reconstruction = np.where(important_feats >= 1, 1, 0)
+    feats_for_reconstruction = np.where(features >= 1, 1, 0)
     features = csr_matrix(features)
-    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, feats_for_reconstruction
+    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, torch.tensor(feats_for_reconstruction)
 
 
 def cora():
@@ -470,10 +477,9 @@ def cora():
     features = ds['x'].numpy()
     label = ds['y']
     _, important_feat_ids = reduce_node_features(np.array(features), label, 0)
-    important_feats = features[:, important_feat_ids]
-    feats_for_reconstruction = np.where(important_feats >= 1, 1, 0)
+    feats_for_reconstruction = np.where(features >= 1, 1, 0)
     features = csr_matrix(features)
-    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, feats_for_reconstruction
+    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, torch.tensor(feats_for_reconstruction)
 
     
 

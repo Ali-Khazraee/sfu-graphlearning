@@ -25,8 +25,6 @@ torch.backends.cudnn.deterministic = True
 
 
 
-
-
 # torch._set_deterministic(True)
 
 # batch_norm
@@ -38,8 +36,8 @@ parser = argparse.ArgumentParser(description='VGAE Framework')
 parser.add_argument('-e', dest="epoch_number", type=int, default=101, help="Number of Epochs")
 parser.add_argument('-v', dest="Vis_step", type=int, default=20, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
-parser.add_argument('-dataset', dest="dataset", default="acm",
-                    help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM")
+parser.add_argument('-dataset', dest="dataset", default="IMDB-PyG",
+                    help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM, IMDB-PyG")
 parser.add_argument('-hemogenize', dest="hemogenize", default=False, help="either withhold the layers (edges types) during training or not")
 parser.add_argument('-NofCom', dest="num_of_comunities", type=int, default=64,
                     help="Dimention of Z, i.e len(Z[0]), in the bottleNEck")
@@ -197,7 +195,7 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred
     # KL divergence
     kl_loss = (-0.5 / num_nodes) * torch.mean(
         torch.sum(1 + 2 * torch.log(std_z) - mean_z.pow(2) - (std_z).pow(2), dim=1))
-    feat_loss = F.binary_cross_entropy_with_logits(x_pred,x_true)
+    feat_loss = F.binary_cross_entropy_with_logits(x_pred,x_true.float())
     
 
     
@@ -452,8 +450,8 @@ for epoch in range(epoch_number):
     # compute loss and accuracy
     ground_truth = 0
     predicted = 0
-    z_kl, adj_reconstruction_loss,feat_loss, acc, adj_val_recons_loss, motif_loss, label_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm,reconstructed_x,features, ground_truth, predicted, reconstructed_labels, gt_labels,  ignore_edges_inx, val_edge_idx)
-    loss = adj_reconstruction_loss + z_kl + torch.tensor(motif_loss )+ label_loss + feat_loss
+    z_kl, adj_reconstruction_loss,feat_loss, acc, adj_val_recons_loss, motif_loss, label_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm,reconstructed_x,feats_for_reconstruction, ground_truth, predicted, reconstructed_labels, gt_labels,  ignore_edges_inx, val_edge_idx)
+    loss = adj_reconstruction_loss + z_kl + torch.tensor(motif_loss) + label_loss + feat_loss
 
     # record the loss; to be ploted
     pltr.add_values(epoch, [ loss.item() ,adj_reconstruction_loss.item(), feat_loss.item(), z_kl.item()], [None,adj_val_recons_loss.item(), None, None], redraw=False)  # plotter.Plotter(functions=["loss", "adj_Recons Loss","feature_Rec Loss", "KL",])

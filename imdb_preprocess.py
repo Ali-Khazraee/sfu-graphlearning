@@ -36,10 +36,15 @@ import gc
 import matplotlib.pyplot as plt
 
 
+np.random.seed(0)
+random.seed(0)
+torch.seed()
+torch.manual_seed(0)
+torch.cuda.manual_seed(0)
 
 
 
-def  reduce_node_features(x, y , random_seed,  n_components=5):
+def reduce_node_features(x, y , random_seed,  n_components=5):
     np.random.seed(random_seed)
     model = ExtraTreesClassifier()
     model.fit(x,y)
@@ -60,7 +65,7 @@ if torch.cuda.is_available():
 
 
 
-dataa = IMDB("\..")[0]
+dataa = IMDB("data")[0]
 
 
 data_bi = dataa
@@ -95,11 +100,11 @@ cursor.execute("USE %s" %(db_params['db']))
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS movies (
     movie_id INT PRIMARY KEY,
-    feature_1 FLOAT,
-    feature_2 FLOAT,
-    feature_3 FLOAT,
-    feature_4 FLOAT,
-    feature_5 FLOAT,
+    movie_feature_1 FLOAT,
+    movie_feature_2 FLOAT,
+    movie_feature_3 FLOAT,
+    movie_feature_4 FLOAT,
+    movie_feature_5 FLOAT,
     label FLOAT
 )
 """)
@@ -109,11 +114,11 @@ CREATE TABLE IF NOT EXISTS movies (
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS actors (
     actor_id INT PRIMARY KEY,
-    feature_1 FLOAT,
-    feature_2 FLOAT,
-    feature_3 FLOAT,
-    feature_4 FLOAT,
-    feature_5 FLOAT
+    actor_feature_1 FLOAT,
+    actor_feature_2 FLOAT,
+    actor_feature_3 FLOAT,
+    actor_feature_4 FLOAT,
+    actor_feature_5 FLOAT
 )
 """)
 
@@ -121,11 +126,11 @@ CREATE TABLE IF NOT EXISTS actors (
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS directors (
     director_id INT PRIMARY KEY,
-    feature_1 FLOAT,
-    feature_2 FLOAT,
-    feature_3 FLOAT,
-    feature_4 FLOAT,
-    feature_5 FLOAT
+    director_feature_1 FLOAT,
+    director_feature_2 FLOAT,
+    director_feature_3 FLOAT,
+    director_feature_4 FLOAT,
+    director_feature_5 FLOAT
 )
 """)
 
@@ -159,7 +164,7 @@ for i, features in enumerate(x_reduced):
     # Convert tensor values to Python floats
     feature_values = [float(val) for val in features]
     
-    cursor.execute("INSERT INTO movies (movie_id, feature_1, feature_2, feature_3, feature_4, feature_5, label) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+    cursor.execute("INSERT INTO movies (movie_id, movie_feature_1, movie_feature_2, movie_feature_3, movie_feature_4, movie_feature_5, label) VALUES (%s, %s, %s, %s, %s, %s, %s)",
                     (i, *feature_values,float(dataa['movie']['y'][i])))
 
 print("Done adding to movies_table")
@@ -170,7 +175,7 @@ for i, features in enumerate(dataa['actor']['x'][:,important_feats ]):
     # Convert tensor values to Python floats
     feature_values = [float(val) for val in features]
     
-    cursor.execute("INSERT INTO actors (actor_id, feature_1, feature_2, feature_3, feature_4, feature_5) VALUES (%s, %s, %s, %s, %s, %s)",
+    cursor.execute("INSERT INTO actors (actor_id, actor_feature_1, actor_feature_2, actor_feature_3, actor_feature_4, actor_feature_5) VALUES (%s, %s, %s, %s, %s, %s)",
                     (i, *feature_values))
 
 
@@ -187,7 +192,7 @@ for i, features in enumerate(dataa['director']['x'][:,important_feats ]):
     # Convert tensor values to Python floats
     feature_values = [float(val) for val in features]
     
-    cursor.execute("INSERT INTO directors (director_id, feature_1, feature_2, feature_3, feature_4, feature_5) VALUES (%s, %s, %s, %s, %s, %s)",
+    cursor.execute("INSERT INTO directors (director_id, director_feature_1, director_feature_2, director_feature_3, director_feature_4, director_feature_5) VALUES (%s, %s, %s, %s, %s, %s)",
                     (i, *feature_values))
 
 
