@@ -11,6 +11,14 @@ from scipy.sparse import csr_matrix
 from torch_geometric.datasets import IMDB
 from torch_geometric.datasets import Amazon, Planetoid
 from utils import * 
+import random
+
+np.random.seed(0)
+random.seed(0)
+torch.seed()
+torch.manual_seed(0)
+torch.cuda.manual_seed(0)
+
 
 
 def parse_index_file(filename):
@@ -33,13 +41,13 @@ def load_data(dataset):
     
     if dataset == "acm":
         return acm_homogenized()
-    if dataset =="acm-multi":
-        return acm_multi()
+
+
     
     if dataset =="IMDB":
         return IMDb()
-    if dataset =="imdb-multi":
-        return imdb_multi()
+    if dataset =="IMDB-PyG":
+        return IMDB_PyG()
     if dataset =="NELL":
         return NELL()
     elif dataset =="DBLP":
@@ -187,12 +195,8 @@ def IMDb():
     return adj, feature, node_label, edge_labels, None, None, None, None
 
 
-
-
-
-
-def imdb_multi():
-    dataset = IMDB("../")
+def IMDB_PyG():
+    dataset = IMDB("data/")
     heterodata = dataset[0]
     labels = heterodata['movie']['y']
     # heterodata = torch.load('data/IMDB/heterodata.pt')
@@ -242,68 +246,12 @@ def imdb_multi():
 
 
     features_with_labels = np.array(features[:mapping_details['node_type_to_index_map']['movie'][1]])
+    features_with_labels = np.where(features_with_labels >= 1, 1, 0)
     _, important_feat_ids = reduce_node_features(features_with_labels, labels, random_seed = 0)
-    important_feats = features[:, important_feat_ids]
-    feats_for_reconstruction = np.where(important_feats >= 1, 1, 0)
+    feats_for_reconstruction = np.where(features[:,important_feat_ids] >= 1, 1, 0)
+    features = np.hstack((features,feats_for_reconstruction))
     features = csr_matrix(features)
-    return adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction
-
-def acm_multi():
-    
-    heterodata = torch.load('data/acm_multi/multi_acm.pt')
-    labels = heterodata['paper']['y']
-    
-    num_nodes = sum(heterodata[node_type].num_nodes for node_type in heterodata.node_types)
-    adj = csr_matrix((num_nodes, num_nodes), dtype=int)
-    edge_labels = csr_matrix((num_nodes, num_nodes), dtype=int)
-
-    node_type_to_index_map = {}
-    current_index = 0
-    for node_type in heterodata.node_types:
-        node_count = heterodata[node_type].num_nodes
-        node_type_to_index_map[node_type] = (current_index, current_index + node_count)
-        current_index += node_count
-
-    node_labels = np.zeros(num_nodes, dtype=int)
-    for node_type, (start, end) in node_type_to_index_map.items():
-        node_labels[start:end] = list(heterodata.node_types).index(node_type)
-
-    edge_type_encoding = {}
-    counter = 1
-    for edge_type in heterodata.edge_types:
-        simplified_edge_type = tuple(sorted([edge_type[0], edge_type[2]]))
-        if simplified_edge_type not in edge_type_encoding:
-            edge_type_encoding[simplified_edge_type] = counter
-            counter += 1
-
-    for edge_type in heterodata.edge_types:
-        edge_index = heterodata[edge_type].edge_index.numpy()
-        src_indices_global = edge_index[0] + node_type_to_index_map[edge_type[0]][0]
-        dst_indices_global = edge_index[1] + node_type_to_index_map[edge_type[2]][0]
-        simplified_edge_type = tuple(sorted([edge_type[0], edge_type[2]]))
-        edge_code = edge_type_encoding[simplified_edge_type]
-        adj[src_indices_global, dst_indices_global] = 1
-        edge_labels[src_indices_global, dst_indices_global] = edge_code
-
-    features = np.vstack([heterodata[node_type].x.numpy() for node_type in heterodata.node_types])
-   
-    
-    circles = None
-
-    mapping_details = {
-        'node_type_to_index_map': node_type_to_index_map,
-        'edge_type_encoding': edge_type_encoding,
-    }
-
-
-
-    features_with_labels = np.array(features[:mapping_details['node_type_to_index_map']['paper'][1]])
-    _, important_feat_ids = reduce_node_features(features_with_labels, labels, random_seed = 0)
-    important_feats = features[:, important_feat_ids]
-    feats_for_reconstruction = np.where(important_feats >= 1, 1, 0)
-    features = csr_matrix(features)
-    return adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction
-
+    return adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids, torch.tensor(feats_for_reconstruction)
 
 
 
@@ -469,7 +417,7 @@ def NELL():
 
 
 def acm_homogenized():
-    ds = torch.load("../VGAE/db/acm.pt")
+    ds = torch.load("data/acm.pt")
     ds['y'] =torch.tensor(ds['y'])
     num_nodes = ds['y'].shape[0]
     adjacency_matrix = np.zeros((num_nodes, num_nodes))
@@ -486,9 +434,10 @@ def acm_homogenized():
     label = torch.tensor(ds['y'])
     _, important_feat_ids = reduce_node_features(np.array(features), label, 0)
     important_feats = features[:, important_feat_ids]
-    feats_for_reconstruction = np.where(important_feats >= 1, 1, 0)
+    feats_for_reconstruction = np.where(features[:,important_feat_ids] >= 1, 1, 0)
+    features = np.hstack((features,feats_for_reconstruction))
     features = csr_matrix(features)
-    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, feats_for_reconstruction
+    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, torch.tensor(feats_for_reconstruction)
     
         
     
@@ -509,13 +458,15 @@ def citeseer():
     label = ds['y']
     _, important_feat_ids = reduce_node_features(np.array(features), label, 0)
     important_feats = features[:, important_feat_ids]
-    feats_for_reconstruction = np.where(important_feats >= 1, 1, 0)
+    feats_for_reconstruction = np.where(features[:,important_feat_ids] >= 1, 1, 0)
+    
+    features = np.hstack((features,feats_for_reconstruction))
     features = csr_matrix(features)
-    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, feats_for_reconstruction
+    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, torch.tensor(feats_for_reconstruction)
 
 
 def cora():
-    ds = Planetoid("\..", "cora")[0]
+    ds = Planetoid("data", "cora")[0]
     num_nodes = ds['y'].shape[0]
     adjacency_matrix = np.zeros((num_nodes, num_nodes))
 
@@ -530,10 +481,10 @@ def cora():
     features = ds['x'].numpy()
     label = ds['y']
     _, important_feat_ids = reduce_node_features(np.array(features), label, 0)
-    important_feats = features[:, important_feat_ids]
-    feats_for_reconstruction = np.where(important_feats >= 1, 1, 0)
+    feats_for_reconstruction = np.where(features[:,important_feat_ids] >= 1, 1, 0)
+    features = np.hstack((features,feats_for_reconstruction))
     features = csr_matrix(features)
-    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, feats_for_reconstruction
+    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, torch.tensor(feats_for_reconstruction)
 
     
 

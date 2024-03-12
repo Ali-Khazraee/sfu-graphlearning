@@ -11,7 +11,7 @@ from utils import *
 import utils
 import networkx as nx
 from AEmodels import *
-from setup import setup_function, iteration_function, process_reconstructed_data
+from setup import setup_function, iteration_function
 import copy
 
 np.random.seed(0)
@@ -36,8 +36,8 @@ parser = argparse.ArgumentParser(description='VGAE Framework')
 parser.add_argument('-e', dest="epoch_number", type=int, default=101, help="Number of Epochs")
 parser.add_argument('-v', dest="Vis_step", type=int, default=20, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
-parser.add_argument('-dataset', dest="dataset", default="imdb-multi",
-                    help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM, imdb-multi, acm-multi")
+parser.add_argument('-dataset', dest="dataset", default="citeseer",
+                    help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM, IMDB-PyG")
 parser.add_argument('-hemogenize', dest="hemogenize", default=False, help="either withhold the layers (edges types) during training or not")
 parser.add_argument('-NofCom', dest="num_of_comunities", type=int, default=64,
                     help="Dimention of Z, i.e len(Z[0]), in the bottleNEck")
@@ -56,9 +56,6 @@ parser.add_argument('-encoder_type', dest="encoder_type", default="RGCN_Encoder"
 parser.add_argument('-num_node', dest="num_node", default=-1, type=str,
                     help="the size of subgraph which is sampled; -1 means use the whole graph; I added this feature to enable us to train on a small subset of graph to speed up Dev")
 parser.add_argument("-downstreamTasks", dest="downstreamTasks" , default= {"nodeClassification","linkPrediction"}, help="a ser of downsteam tasks", nargs='+',)
-parser.add_argument('-motif_obj', dest="motif_obj", default= True , help="adds motif_loss term to objective function")
-parser.add_argument('-rp', dest="rule_prune",  default= True , help="Toggle rule pruning on or off")
-
 
 
 
@@ -81,9 +78,6 @@ decoder = args.decoder_type
 encoder = args.encoder_type
 encoder_layers = [int(x) for x in args.encoder_layers.split()]
 use_feature = args.use_feature
-use_motif = args.motif_obj
-rule_prune = args.rule_prune
-
 
 subgraph_size = args.num_node
 if dataset in {"facebook_egoes"}:  # using subgraph will result in exception
@@ -93,19 +87,18 @@ split_the_data_to_train_test = args.split_the_data_to_train_test
 
 synthesis_graphs = {"grid", "community", "lobster", "ego"}
 
-heterogeneous_data = ["imdb-multi", "acm-multi"]
 
 #============================================================'
-# count ground truth motif
+# Tcount ground truth motif
 
-if use_motif == True:
-    rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations = setup_function("imdb_ali", rule_prune)
-    ground_truth = iteration_function(dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations , reconstructed_x_slice = None , reconstructed_labels = None ,mode = 'ground_truth')
-else:
-    ground_truth = None
+# rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities = setup_function(dataset)
+
+# ground_truth = iteration_function(rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities)
+
+'edit'
+
 
 # ************************************************************
-
 # VGAE frame_work
 class GVAE_FrameWork(torch.nn.Module):
     def __init__(self, encoder, decoder, node_feat_decoder, label_decoder):
@@ -170,17 +163,21 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred
     """
     val_recons_loss = None
 
-    # loss for motif counting 
+    # 'start edit'
     
-    if use_motif == True: 
-        first_concat = torch.stack(ground_truth)
-        std_dev = first_concat.std()
-        normalized_ground_truth = [t / std_dev for t in ground_truth]
-        normalized_predicted = [t / std_dev for t in predicted]
-        motif_loss = F.mse_loss(torch.stack(normalized_ground_truth), torch.stack(normalized_predicted))
-    else: 
-        motif_loss = 0
-    
+    # ground_truth = [tensor.item() for tensor in ground_truth]
+
+    # std_dev = np.std(ground_truth)
+    # for i in range(len(ground_truth)):
+    #     ground_truth[i] = ground_truth[i] / std_dev
+        
+    # for i in range(len(ground_truth)):
+    #     predicted[i] = predicted[i] / std_dev
+                 
+
+    # motif = ((a-b)**2 for a, b in zip(ground_truth, predicted))
+    # motif_loss = np.sum(np.fromiter(motif, dtype=float))*(1/len(ground_truth))
+    # 'end edit'
     
     reconstruction_loss = norm * F.binary_cross_entropy_with_logits(pred, labels, pos_weight=pos_wight, reduction='none')
 
@@ -198,7 +195,7 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred
     # KL divergence
     kl_loss = (-0.5 / num_nodes) * torch.mean(
         torch.sum(1 + 2 * torch.log(std_z) - mean_z.pow(2) - (std_z).pow(2), dim=1))
-    feat_loss = F.binary_cross_entropy_with_logits(x_pred,x_true[:,important_feat_ids].float())
+    feat_loss = F.binary_cross_entropy_with_logits(x_pred,x_true.float())
     
 
     
@@ -210,7 +207,7 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred
 
     acc = (torch.sigmoid(pred).round() == labels).sum() / float(pred.shape[0] * pred.shape[1]*pred.shape[2]) # accuracy on the train data
     
-
+    motif_loss = 0
     return kl_loss, reconstruction_loss, feat_loss , acc, val_recons_loss , motif_loss, label_loss
 
 # ============================================================
@@ -223,7 +220,7 @@ if dataset in ('grid', 'community', 'ego', 'lobster'):
     node_label = edge_labels = circles = None
 else:
     synthetic = False
-    original_adj, features, node_label, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction= load_data(dataset)
+    original_adj, features, node_label, edge_labels, circles, map_dic, important_feat_ids, feats_for_reconstruction= load_data(dataset)
 # shuffling the data, and selecting a subset of it; subgraph_size is used to do the ecperimnet on the samller dataset to insclease development speed
 if subgraph_size == -1:
     subgraph_size = original_adj.shape[-1]
@@ -379,30 +376,83 @@ for epoch in range(epoch_number):
 
     std_z, m_z, z, reconstructed_adj_logit, reconstructed_x, reconstructed_labels = model(graph_dgl, features)
     
+    # 'start edit'
+
+    # reconstructed_adjacency = torch.sigmoid(reconstructed_adj_logit)
     
-    reconstructed_adjacency = torch.sigmoid(reconstructed_adj_logit)
-    reconstructed_x_prob =   torch.sigmoid(reconstructed_x)
-    #print(reconstructed_x)
-    reconstructed_labels_prob =  torch.sigmoid(reconstructed_labels)
+
+
+    # if dataset == "IMDB-PyG":
+    #     edge_encoding_to_node_types = {v: k for k, v in map_dic['edge_type_encoding'].items()}
+    #     filtered_reconstruct_adj = []
+        
+    #     for idx, adj_matrix in enumerate(reconstructed_adjacency):
+    #         node_types = edge_encoding_to_node_types[idx + 1]  
+    #         src_type, dst_type = node_types
+
+    #         src_start, src_end = map_dic['node_type_to_index_map'][src_type]
+    #         dst_start, dst_end = map_dic['node_type_to_index_map'][dst_type]
+
+
+    #         filtered_matrix = adj_matrix[src_start:src_end, dst_start:dst_end]
+
+
+    #         filtered_reconstruct_adj.append(filtered_matrix)
+        
+    #     filtered_reconstruct_adj_tensors = [torch.tensor(matrix).to('cuda:0') for matrix in filtered_reconstruct_adj]
+        
+        
+    #     for filtered_matrix in filtered_reconstruct_adj_tensors:
+    #         filtered_shape = filtered_matrix.shape 
+        
+    #         for key, matrix in matrices.items():
+    #             if matrix.shape == filtered_shape:
+    #                 matrices[key] = filtered_matrix
+    #                 break
+                
+        
+        
+    #     movie_reconstructed_x = reconstructed_x[:map_dic['node_type_to_index_map']['movie'][1]]        
+    #     reconstructed_x_important_feats = movie_reconstructed_x[:,important_feat_ids]
+    #     for i in range(1, len(important_feat_ids)+1):
+    #         feature_name = f'feature_{i}'
     
+    #         tensor_to_assign = ((reconstructed_x_important_feats[:, i-1]) > 0.5).int().cpu().numpy()
+    #         entities['movies'][feature_name] = tensor_to_assign
+        
+    #     # only use labels of the movies
+       
+    #     reconstructed_labels = reconstructed_labels[:map_dic['node_type_to_index_map']['movie'][1]]
     
-    #updating some data frames to count predicted motifs propely
-    # TODO: I need to optimize this part later
+    #     entities['movies']['label'] = torch.argmax(reconstructed_labels, dim=1)
     
-    if use_motif == True: 
-        reconstructed_x_slice, matrices,reconstructed_labels_m = process_reconstructed_data(dataset, heterogeneous_data, mapping_details, reconstructed_adjacency, reconstructed_x_prob, important_feat_ids, matrices,reconstructed_labels_prob)        
-        predicted = iteration_function(dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations , reconstructed_x_slice, reconstructed_labels_m, mode = 'predicted')
-    else:
-        predicted = None
-             
+    # else:
+        
+    #     x_recon_important_feats = reconstructed_x[:,important_feat_ids]
+        
+
+    #     for i in range(1, len(important_feat_ids)+1):
+    #         feature_name = f'feature_{i}'
+        
+    #         tensor_to_assign = ((x_recon_important_feats[:, i-1]) > 0.5).int().cpu().numpy()
+    #         entities['nodes_table'][feature_name] = tensor_to_assign
+        
+    #     predicted_labels = torch.argmax(reconstructed_labels, dim=1)
+    #     entities['nodes_table']['label'] = predicted_labels.cpu().detach().numpy()
+    #     matrices['edges_table'] = reconstructed_adjacency[0].to('cuda:0')
+        
+            
+    # predicted = iteration_function(rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities)
+
+            
+    # 'end edit'        
+            
     # compute loss and accuracy
-    z_kl, adj_reconstruction_loss,feat_loss, acc, adj_val_recons_loss, motif_loss, label_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm,reconstructed_x,features, ground_truth, predicted, reconstructed_labels, gt_labels,  ignore_edges_inx, val_edge_idx)
-    #loss = adj_reconstruction_loss + z_kl + torch.tensor(motif_loss )+ label_loss + feat_loss
-    if use_motif == True : 
-        loss = adj_reconstruction_loss+ feat_loss + z_kl + label_loss + motif_loss
-        #loss = motif_loss
-    else:
-        loss = adj_reconstruction_loss+ feat_loss + z_kl + label_loss
+    ground_truth = 0
+    predicted = 0
+    z_kl, adj_reconstruction_loss,feat_loss, acc, adj_val_recons_loss, motif_loss, label_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm,reconstructed_x,feats_for_reconstruction, ground_truth, predicted, reconstructed_labels, gt_labels,  ignore_edges_inx, val_edge_idx)
+    loss = adj_reconstruction_loss + z_kl + torch.tensor(motif_loss) + label_loss + feat_loss
+
     # record the loss; to be ploted
     pltr.add_values(epoch, [ loss.item() ,adj_reconstruction_loss.item(), feat_loss.item(), z_kl.item()], [None,adj_val_recons_loss.item(), None, None], redraw=False)  # plotter.Plotter(functions=["loss", "adj_Recons Loss","feature_Rec Loss", "KL",])
 
@@ -438,56 +488,6 @@ if "nodeClassification" in downstreamTasks:
     # pred_label = Classifier(z, label)
     pass
 
-
-# closeness metric 
-# TODO : I can functionalize this part of the code
-num_obs = 1  
-if not hemogenized:
-    edge_relType_full = edge_labels.multiply(original_adj)
-    rel_type = np.unique(edge_labels.data)
-    num_obs = len(rel_type)  
-
-    graph_dgl = []
-    full_matrix = []
-    for rel_num in rel_type:
-        tm_matrix = csr_matrix(edge_relType_full.shape)
-        tm_matrix[edge_relType_full == rel_num] = 1
-        full_matrix_item = tm_matrix + sp.eye(original_adj.shape[-1])
-        full_matrix.append(full_matrix_item.todense())
-
-        graph_dgl.append(
-            dgl.graph((list(full_matrix_item.nonzero()[0]), list(full_matrix_item.nonzero()[1])), num_nodes= original_adj.shape[0])
-        )
-
-    full_matrix = [torch.tensor(matrix) for matrix in full_matrix]
-    original_adj = torch.stack(full_matrix)
-
-    graph_dgl.append(
-        dgl.graph((list(range(original_adj.shape[-1])), list(range(original_adj.shape[-1]))), num_nodes=original_adj.shape[-1])
-    )
-
-
-model.eval()
-std_z, m_z, z, reconstructed_adj_logit, reconstructed_x, reconstructed_labels = model(graph_dgl, features)
-reconstructed_adjacency = torch.sigmoid(reconstructed_adj_logit)
-reconstructed_x_prob =   torch.sigmoid(reconstructed_x)
-reconstructed_labels_prob =  torch.sigmoid(reconstructed_labels)
-
-
-
-
-rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations = setup_function("imdb_ali", rule_prune)
-ground_truth = iteration_function(dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations , reconstructed_x_slice = None , reconstructed_labels = None ,mode = 'ground_truth')
-reconstructed_x_slice, matrices,reconstructed_labels_m = process_reconstructed_data(dataset, heterogeneous_data, mapping_details, reconstructed_adjacency, reconstructed_x_prob, important_feat_ids, matrices,reconstructed_labels_prob)        
-predicted = iteration_function(dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations , reconstructed_x_slice, reconstructed_labels_m, mode = 'predicted')
-
-
-
-closeness = torch.sqrt(F.mse_loss(torch.stack(ground_truth), torch.stack(predicted)))
-
-
-
-print('closensee = ', closeness)
 
 
 # note: TODO: add evaluation on test set
