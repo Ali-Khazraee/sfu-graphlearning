@@ -7,8 +7,10 @@ import torch
 
 
 
-def setup_function(db_name):
-    db = db_name = "imdb_ali"
+
+
+def setup_function(db_name, rule_prune):
+    db = db_name 
     host_name = 'database-1.cxcqxpvbnnwo.us-east-2.rds.amazonaws.com'
     user_name = "admin"
     password_name = "newPassword"
@@ -118,16 +120,12 @@ def setup_function(db_name):
     for i in range(len(childs)):
         rule = [childs[i][0]]
         cursor_bn.execute("SELECT parent FROM Final_Path_BayesNets_view WHERE child = " + "'" + childs[i][0] + "'")
-        # print(parents)
         parents = cursor_bn.fetchall()
         for j in parents:
             if j[0] != '':
                 rule += [j[0]]
-                # print(j[0])
         rules.append(rule)
-        # print(rule)
-        # print('---')
-        # print(rules)
+
         if len(rule) == 1:
             multiples.append(0)
         else:
@@ -145,12 +143,10 @@ def setup_function(db_name):
         for j in range(len(rule)):
             fun = rule[j].split('(')[0]
             functor[j] = fun
-            # print(functor[j])
             if rule[j].find(',') == -1:
                 var = rule[j].split('(')[1][:-1]
                 variable[j] = var
                 node[j] = var[:-1]
-                # print(var)
                 if relation_check == 0:
                     unmasked_variables.append(var)
                     state.append(0)
@@ -161,7 +157,6 @@ def setup_function(db_name):
                         func = k.split('(')[0]
                         if func not in relation_names:
                                 func = attributes[func]
-                                # print(func)
                         if k.find(',') != -1 and k.find(var) != -1:
                             unmasked_variables.append(k.split('(')[1][:-1])
                             mas.append([func, k.split('(')[1].split(',')[0], k.split('(')[1].split(',')[1][:-1]]) 
@@ -185,7 +180,7 @@ def setup_function(db_name):
         for j in range(1, len(unmasked_variables)):
             mask_check = 0
             for k in range(len(masked_variables)):
-                if unmasked_variables[j] == unmasked_variables[k]:
+                if unmasked_variables[j] == masked_variables[k]:
                     mask_indice.append([k, j])
                     mask_check = 1
             if mask_check == 0:
@@ -260,28 +255,55 @@ def setup_function(db_name):
         stack_indices.append(stack_indice)
         cursor_bn.execute("SELECT * FROM `" + childs[i][0] + "_CP`")
         value = cursor_bn.fetchall()
-        #values.append(value)
-        pruned_value = []
-        for j in value:
-            size = len(j)
-            if multiples[i]:
-                if 2 * j[size - 4] * (log(j[size - 3]) - log(j[size - 1])) - log(j[size - 4]) > 0:
-                    pruned_value.append(j)
-            else:
-                if 2 * int(j[size - 3]) * (log(j[size - 5]) - log(j[size - 1])) - log(int(j[size - 3])) > 0:
-                    pruned_value.append(j)
-        values.append(pruned_value)
+        if rule_prune == True :
+            pruned_value = []
+            for j in value:
+                size = len(j)
+                if multiples[i]:
+                    if 2 * j[size - 4] * (log(j[size - 3]) - log(j[size - 1])) - log(j[size - 4]) > 0:
+                        pruned_value.append(j)
+                else:
+                    if 2 * int(j[size - 3]) * (log(j[size - 5]) - log(j[size - 1])) - log(int(j[size - 3])) > 0:
+                        pruned_value.append(j)
+            values.append(pruned_value)
+        else:
+            values.append(value)
+
         
-    return rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities
+    relation_functors = []
+    for sublist in rules:
+        for item in sublist:
+            if item.count(',') == 1:
+                relation_functors.append(item)
+
+    unique_relation_functors = list(set(relation_functors))
+    for relation_functor in unique_relation_functors:
+        entities_involved = relation_functor.replace(')', '').split('(')[1].split(',')
+    
+        entities_clean = [entity[:-1] for entity in entities_involved]
+    
+
+        correct_shape = (len(entities[entities_clean[0]]), len(entities[entities_clean[1]]))
+    
+
+        if matrices[relation_functor.split('(')[0]].shape != correct_shape:
+            matrices[relation_functor.split('(')[0]] = matrices[relation_functor.split('(')[0]].t()
+       
+        
+    return rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations 
 
 
 
-def iteration_function(rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities):
+def iteration_function(dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations, reconstructed_x_slice, reconstructed_labels,mode):
+
     functor_value_dict = dict()
     counter = 0
     counter_c1 = 0
     motif_list = []
+
     for table in range(len(rules)):
+        if mode == 'predicted':
+            print(rules[table])
 
         for table_row in values[table]:
 
@@ -303,55 +325,142 @@ def iteration_function(rules, multiples, states, functors, variables, nodes, mas
                 state = states[table][column]
 
                 if state == 0:
-                    functor_address = nodes[table][column]
-                    primary_key = keys[functor_address]
-
-                    matrix = torch.zeros((len(entities[functor_address].index), 1), device='cuda')
-                    for entity_index in range(len(entities[functor_address][functor])):
-                        functor_value = entities[functor_address][functor][entity_index]
-                        if isinstance(table_functor_value, str):
-                            functor_value = str(functor_value) if isinstance(functor_value, (int, float)) else functor_value
-                        if functor_value == table_functor_value:
-                            key_index = entities[functor_address][primary_key][entity_index]
-                            row_index = indices[primary_key][key_index]
-                            matrix[row_index][0] = 1
-                    unmasked_matrices.append(matrix)
-                    functor_value_dict[functor_value_dict_key] = matrix
-
-                elif state == 1:
-                    variable = variables[table][column]
-                    functor_address = nodes[table][column]
-                    primary_key = keys[functor_address]
-
-                    for mask_info in masks[table][column]:
-                        tuple_mask_info = tuple(mask_info)
-                        functor_value_dict_key = (table_functor_value, functor, variable, tuple_mask_info)
-                        if functor_value_dict.get(functor_value_dict_key) is not None:
-                            matrix = functor_value_dict[functor_value_dict_key]
-                            unmasked_matrices.append(matrix)
-                            counter += 1
-                            counter_c1 += 1
-                            continue
-
-                        if variable == mask_info[1]:
-                            matrix = torch.zeros((matrices[mask_info[0]].shape[0], 1), device='cuda')
-                        elif variable == mask_info[2]:
-                            matrix = torch.zeros((1, matrices[mask_info[0]].shape[1]), device='cuda')
-
+                    if mode == 'ground_truth':
+                        
+                        functor_address = nodes[table][column]
+                        primary_key = keys[functor_address]
+    
+                        matrix = torch.zeros((len(entities[functor_address].index), 1), device='cuda')
                         for entity_index in range(len(entities[functor_address][functor])):
                             functor_value = entities[functor_address][functor][entity_index]
+                            if type(table_functor_value) == str:
+                                if type(functor_value) == int64 or type(functor_value) == int32:
+                                    functor_value = str(functor_value)
+                                elif type(functor_value) == float64 or type(functor_value) == float32:
+                                    functor_value = str(int(functor_value))    
+                                
+                            
                             if functor_value == table_functor_value:
                                 key_index = entities[functor_address][primary_key][entity_index]
-                                index = indices[primary_key][key_index]
-                                if variable == mask_info[1]:
-                                    matrix[index, 0] = 1
-                                elif variable == mask_info[2]:
-                                    matrix[0, index] = 1
+                                row_index = indices[primary_key][key_index]
+                                matrix[row_index][0] = 1
                         unmasked_matrices.append(matrix)
+
                         functor_value_dict[functor_value_dict_key] = matrix
+                    
+                    else: 
+                        functor_address = nodes[table][column]
+                        primary_key = keys[functor_address]
+                        if '_' in functor:
+                            table_functor_value = int(table_functor_value)
+                            if dataset in heterogeneous_data:
+
+                                indx = int(functor[-1])-1
+                                
+                                if table_functor_value == 0:
+                                    matrix = (1 - reconstructed_x_slice[functor_address[:-1]][:,indx].float()).view(-1, 1)
+                                elif table_functor_value == 1:
+                                    matrix = reconstructed_x_slice[functor_address[:-1]][:,indx].float().view(-1, 1)
+                            else:
+                                indx = int(functor[-1])-1
+                                if table_functor_value == 0:
+                                    matrix = (1 - reconstructed_x_slice[:,indx].float()).view(-1, 1)
+                                elif table_functor_value == 1:
+                                    matrix = reconstructed_x_slice[:,indx].float().view(-1, 1)
+                                
+                        else:
+                            matrix = reconstructed_labels[:,int(table_functor_value)].float().to('cuda:0')
+                        unmasked_matrices.append(matrix)
+
+                        functor_value_dict[functor_value_dict_key] = matrix                        
+
+                elif state == 1:
+                    if mode == 'ground_truth':
+                        variable = variables[table][column]
+                        functor_address = nodes[table][column]
+                        primary_key = keys[functor_address]
+    
+                        for mask_info in masks[table][column]:
+                            tuple_mask_info = tuple(mask_info)
+                            functor_value_dict_key = (table_functor_value, functor, variable, tuple_mask_info)
+                            if functor_value_dict.get(functor_value_dict_key) is not None:
+                                matrix = functor_value_dict[functor_value_dict_key]
+                                unmasked_matrices.append(matrix)
+                                counter += 1
+                                counter_c1 += 1
+                                continue
+    
+                            if variable == mask_info[1]:
+                                matrix = torch.zeros((matrices[mask_info[0]].shape[0], 1), device='cuda')
+                            elif variable == mask_info[2]:
+                                matrix = torch.zeros((1, matrices[mask_info[0]].shape[1]), device='cuda')
+    
+                            for entity_index in range(len(entities[functor_address][functor])):
+                                functor_value = entities[functor_address][functor][entity_index]
+                                if functor_value == table_functor_value:
+                                    key_index = entities[functor_address][primary_key][entity_index]
+                                    index = indices[primary_key][key_index]
+                                    if variable == mask_info[1]:
+                                        matrix[index, 0] = 1
+                                    elif variable == mask_info[2]:
+                                        #print(key_index)
+                                        matrix[0, index] = 1
+                            unmasked_matrices.append(matrix)
+                            functor_value_dict[functor_value_dict_key] = matrix
+                    else:
+                        
+                        variable = variables[table][column]
+                        functor_address = nodes[table][column]
+                        primary_key = keys[functor_address]
+        
+                        for mask_info in masks[table][column]:
+        
+                            if variable == mask_info[1]:
+                                if '_' in functor:
+                                    table_functor_value = int(table_functor_value)
+                                    if dataset in heterogeneous_data:
+                                        indx = int(functor[-1])-1 
+                                        if table_functor_value == 0:
+                                            matrix = (1 - reconstructed_x_slice[functor_address[:-1]][:,indx].float()).view(-1, 1)
+                                        elif table_functor_value == 1:
+                                            matrix = reconstructed_x_slice[functor_address[:-1]][:,indx].float().view(-1, 1)
+                                    else:
+                                        indx = int(functor[-1])-1
+                                        if table_functor_value == 0:
+                                            matrix = (1 - reconstructed_x_slice[:,indx].float()).view(-1, 1)
+                                        elif table_functor_value == 1:
+                                            matrix = reconstructed_x_slice[:,indx].float().view(-1, 1)
+                                        
+                                else:
+                                    matrix = reconstructed_labels[:,int(table_functor_value)].float().view(-1, 1)
+                                unmasked_matrices.append(matrix)
+                                functor_value_dict[functor_value_dict_key] = matrix              
+                                
+                                
+                                
+                            elif variable == mask_info[2]:
+                                if '_' in functor:
+                                    table_functor_value = int(table_functor_value)
+                                    if dataset in heterogeneous_data:
+                                        indx = int(functor[-1])-1 
+                                        if table_functor_value == 0:
+                                            matrix = (1 - reconstructed_x_slice[functor_address[:-1]][:,indx].float()).view(1,-1)
+                                        elif table_functor_value == 1:
+                                            matrix = reconstructed_x_slice[functor_address[:-1]][:,indx].float().view(1,-1)
+                                    else:
+                                        indx = int(functor[-1])-1
+                                        if table_functor_value == 0:
+                                            matrix = (1 - reconstructed_x_slice[:,indx].float()).view(1,-1)
+                                        elif table_functor_value == 1:
+                                            matrix = reconstructed_x_slice[:,indx].float().view(1,-1)
+                                        
+                                else:
+                                    matrix = (reconstructed_labels[:,int(table_functor_value)].float().view(1,-1)).to('cuda:0')
+                                unmasked_matrices.append(matrix)
+                                functor_value_dict[functor_value_dict_key] = matrix  
 
                 elif state == 2:
-                    matrix = 1 - matrices[functor] if table_functor_value == 'F' else matrices[functor]
+                    matrix = 1 - matrices[functor].float() if table_functor_value == 'F' else matrices[functor].float()
                     unmasked_matrices.append(matrix)
                     functor_value_dict[functor_value_dict_key] = matrix
 
@@ -406,9 +515,70 @@ def iteration_function(rules, multiples, states, functors, variables, nodes, mas
                 result = torch.mm(result, stacked_matrices[k])
 
 
-            #print(torch.sum(result))
             motif_list.append(torch.sum(result))
+            if mode == 'predicted':
+                print(torch.sum(result))
+            del unmasked_matrices, masked_matrices, sorted_matrices, stacked_matrices, matrix
+ 
 
     return motif_list
+
+
+
+
+def process_reconstructed_data(dataset, heterogeneous_data, mapping_details, reconstructed_adjacency, reconstructed_x, important_feat_ids, matrices,reconstructed_labels):
+
+    if dataset in heterogeneous_data:
+        edge_encoding_to_node_types = {v: k for k, v in mapping_details['edge_type_encoding'].items()}
+        filtered_reconstruct_adj = []
+        
+        for idx, adj_matrix in enumerate(reconstructed_adjacency):
+            node_types = edge_encoding_to_node_types[idx + 1]  
+            src_type, dst_type = node_types
+
+            src_start, src_end = mapping_details['node_type_to_index_map'][src_type]
+            dst_start, dst_end = mapping_details['node_type_to_index_map'][dst_type]
+
+            filtered_matrix = adj_matrix[src_start:src_end, dst_start:dst_end]
+            filtered_reconstruct_adj.append(filtered_matrix)
+        
+        filtered_reconstruct_adj_tensors = [matrix.to('cuda:0') for matrix in filtered_reconstruct_adj]
+        
+        for filtered_matrix in filtered_reconstruct_adj_tensors:
+            filtered_shape = filtered_matrix.shape 
+            
+            for key, matrix in matrices.items():
+                if matrix.shape == filtered_shape or matrix.t().shape == filtered_shape:
+                    matrices[key] = filtered_matrix
+                    break
+                
+        reconstructed_x_splits = {}
+        
+        for node_type, (start_idx, end_idx) in mapping_details['node_type_to_index_map'].items():
+            reconstructed_x_splits[f"{node_type}"] = reconstructed_x[start_idx:end_idx,:].to('cuda:0')
+            
+        node_type_counts = {}
+
+        for node_types in mapping_details['edge_type_encoding'].keys():
+            for node_type in node_types:
+                if node_type in node_type_counts:
+                    node_type_counts[node_type] += 1
+                else:
+                    node_type_counts[node_type] = 1
+
+        repeated_node_types = [node_type for node_type, count in node_type_counts.items() if count > 1]
+        st_idx, en_idx = mapping_details['node_type_to_index_map'][repeated_node_types[0]]
+        reconstructed_labels_m = reconstructed_labels[st_idx:en_idx].to('cuda:0')
+        
+    else:
+        reconstructed_x_splits = reconstructed_x.to('cuda:0')
+        key = list(matrices.keys())[0]
+        matrices[key] = reconstructed_adjacency[0].to('cuda:0')
+        reconstructed_labels_m = reconstructed_labels.to('cuda:0')
+
+    return reconstructed_x_splits, matrices, reconstructed_labels_m
+
+
+
 
 
