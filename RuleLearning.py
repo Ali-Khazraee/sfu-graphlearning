@@ -11,7 +11,7 @@ from utils import *
 import utils
 import networkx as nx
 from AEmodels import *
-from setup import setup_function, iteration_function, process_reconstructed_data
+from setup import *
 import copy
 
 np.random.seed(0)
@@ -23,6 +23,9 @@ torch.backends.cudnn.enabled = False
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 
+'you can donwload the acm graph opbject from the link below'
+##https://iutbox.iut.ac.ir/index.php/s/5aHAaqEA3mfwCNG
+'you should put it in data/acm_multi/multi_acm.pt directory'
 
 
 # torch._set_deterministic(True)
@@ -58,6 +61,8 @@ parser.add_argument('-num_node', dest="num_node", default=-1, type=str,
 parser.add_argument("-downstreamTasks", dest="downstreamTasks" , default= {"nodeClassification","linkPrediction"}, help="a ser of downsteam tasks", nargs='+',)
 parser.add_argument('-motif_obj', dest="motif_obj", default= True , help="adds motif_loss term to objective function")
 parser.add_argument('-rp', dest="rule_prune",  default= True , help="Toggle rule pruning on or off")
+parser.add_argument('-rw', dest="rule_weight",  default= True , help="Toggle rule weighting on or off - If you want to use rule weighting, you need to turn on rule pruning first by setting it to True.")
+parser.add_argument('-dr', dest="devide_rec_adj",  default= False , help="This switch will divide reconstructed adjacency matrix by 1/n in every epoch")
 
 
 
@@ -83,6 +88,9 @@ encoder_layers = [int(x) for x in args.encoder_layers.split()]
 use_feature = args.use_feature
 use_motif = args.motif_obj
 rule_prune = args.rule_prune
+divide_ajd = args.devide_rec_adj
+rule_weight = args.rule_weight
+
 
 
 subgraph_size = args.num_node
@@ -95,16 +103,7 @@ synthesis_graphs = {"grid", "community", "lobster", "ego"}
 
 heterogeneous_data = ["imdb-multi", "acm-multi"]
 
-#============================================================'
-# count ground truth motif
-
-if use_motif == True:
-    rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations = setup_function("imdb_ali", rule_prune)
-    ground_truth = iteration_function(dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations , reconstructed_x_slice = None , reconstructed_labels = None ,mode = 'ground_truth')
-else:
-    ground_truth = None
-
-# ************************************************************
+database = 'converted_imdb' #put the name of the database in this section
 
 # VGAE frame_work
 class GVAE_FrameWork(torch.nn.Module):
@@ -223,12 +222,13 @@ if dataset in ('grid', 'community', 'ego', 'lobster'):
     node_label = edge_labels = circles = None
 else:
     synthetic = False
-    original_adj, features, node_label, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction= load_data(dataset)
+    original_adj, features, node_label, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction, one_hot_labe = load_data(dataset)
 # shuffling the data, and selecting a subset of it; subgraph_size is used to do the ecperimnet on the samller dataset to insclease development speed
 if subgraph_size == -1:
     subgraph_size = original_adj.shape[-1]
 elemnt = min(original_adj.shape[-1], subgraph_size)
 indexes = list(range(original_adj.shape[-1]))
+
 
 # -----------------------------------------
 # # adj , feature matrix and  node labels  permutaion
@@ -269,7 +269,19 @@ else:
 # I use this mudule to plot error and loss
 pltr = plotter.Plotter(functions=["loss", "adj_Recons Loss", "feature_Rec Loss", "KL", ])
 
+#=================================================================
 
+if dataset in heterogeneous_data:
+    feats_for_reconstruction_count = {}
+    for node_type, (start_idx, end_idx) in mapping_details['node_type_to_index_map'].items():
+        tensor_slice = torch.tensor(feats_for_reconstruction[start_idx:end_idx], dtype=torch.float32).to('cuda')
+        feats_for_reconstruction_count[node_type] = tensor_slice
+else:
+    feats_for_reconstruction_count = torch.tensor(feats_for_reconstruction).to('cuda:0')
+    
+#=================================================================
+    
+    
 
 num_obs = 1  # number of relateion; default is hemogenous dataset with one type of edge
 if hemogenized != True:
@@ -280,9 +292,11 @@ if hemogenized != True:
     graph_dgl = []
 
     train_matrix = []
+    pre_self_loop_train_adj = []
     for rel_num in rel_type:
         tm_mtrix = csr_matrix(edge_relType_train.shape)
         tm_mtrix[edge_relType_train == (rel_num)] = 1
+        pre_self_loop_train_adj.append(tm_mtrix.todense())
         tr_matrix = tm_mtrix + sp.eye(adj_train.shape[-1])
         train_matrix.append(tr_matrix.todense())
 
@@ -370,6 +384,31 @@ gt_labels = copy.deepcopy(node_label)
 masked_indexes = np.random.choice(gt_labels.shape[0], round(gt_labels.shape[0] * 2/10), replace=False)
 gt_labels[masked_indexes] = -1
 
+
+
+#============================================================'
+# count ground truth motif
+
+if use_motif == True:
+    rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations, prunes = setup_function(database, rule_prune, rule_weight)
+    
+    if mapping_details != None:
+        update_matrices(matrices, mapping_details, pre_self_loop_train_adj)
+    else:
+        key = next(iter(matrices))
+        matrices[key] = pre_self_loop_train_adj[0]
+    
+    ground_truth = iteration_function(dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations ,rule_weight, prunes , feats_for_reconstruction_count , one_hot_labe.to('cuda:0') , mode = 'ground_truth')
+else:
+    ground_truth = None
+
+# ************************************************************
+
+
+
+
+
+
 print(model)
 for epoch in range(epoch_number):
 
@@ -385,13 +424,18 @@ for epoch in range(epoch_number):
     #print(reconstructed_x)
     reconstructed_labels_prob =  torch.sigmoid(reconstructed_labels)
     
+    if divide_ajd == True:
+        for i in range(len(reconstructed_adjacency)):
+            reconstructed_adjacency[i] = (reconstructed_adjacency[i])*(1/num_nodes)
+        
+    
     
     #updating some data frames to count predicted motifs propely
     # TODO: I need to optimize this part later
     
     if use_motif == True: 
         reconstructed_x_slice, matrices,reconstructed_labels_m = process_reconstructed_data(dataset, heterogeneous_data, mapping_details, reconstructed_adjacency, reconstructed_x_prob, important_feat_ids, matrices,reconstructed_labels_prob)        
-        predicted = iteration_function(dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations , reconstructed_x_slice, reconstructed_labels_m, mode = 'predicted')
+        predicted = iteration_function(dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations ,rule_weight, prunes, reconstructed_x_slice, reconstructed_labels_m,  mode = 'predicted')
     else:
         predicted = None
              
@@ -399,8 +443,8 @@ for epoch in range(epoch_number):
     z_kl, adj_reconstruction_loss,feat_loss, acc, adj_val_recons_loss, motif_loss, label_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm,reconstructed_x,features, ground_truth, predicted, reconstructed_labels, gt_labels,  ignore_edges_inx, val_edge_idx)
     #loss = adj_reconstruction_loss + z_kl + torch.tensor(motif_loss )+ label_loss + feat_loss
     if use_motif == True : 
-        loss = adj_reconstruction_loss+ feat_loss + z_kl + label_loss + motif_loss
-        #loss = motif_loss
+        #loss = adj_reconstruction_loss+ feat_loss + z_kl + label_loss + motif_loss
+        loss = motif_loss
     else:
         loss = adj_reconstruction_loss+ feat_loss + z_kl + label_loss
     # record the loss; to be ploted
@@ -476,14 +520,14 @@ reconstructed_labels_prob =  torch.sigmoid(reconstructed_labels)
 
 
 
-rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations = setup_function("imdb_ali", rule_prune)
-ground_truth = iteration_function(dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations , reconstructed_x_slice = None , reconstructed_labels = None ,mode = 'ground_truth')
+rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations = setup_function(database, rule_prune, rule_weight)
+metric_ground_truth = iteration_function(dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations , rule_weight, prunes, reconstructed_x_slice = None , reconstructed_labels = None , mode = 'metric_ground_truth')
 reconstructed_x_slice, matrices,reconstructed_labels_m = process_reconstructed_data(dataset, heterogeneous_data, mapping_details, reconstructed_adjacency, reconstructed_x_prob, important_feat_ids, matrices,reconstructed_labels_prob)        
-predicted = iteration_function(dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations , reconstructed_x_slice, reconstructed_labels_m, mode = 'predicted')
+metric_predicted = iteration_function(dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations , rule_weight, prunes, reconstructed_x_slice, reconstructed_labels_m ,mode = 'predicted')
 
 
 
-closeness = torch.sqrt(F.mse_loss(torch.stack(ground_truth), torch.stack(predicted)))
+closeness = torch.sqrt(F.mse_loss(torch.stack(metric_ground_truth), torch.stack(metric_predicted)))
 
 
 

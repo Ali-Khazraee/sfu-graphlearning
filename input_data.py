@@ -10,6 +10,7 @@ from  Synthatic_graph_generator import Synthetic_data
 from scipy.sparse import csr_matrix
 from torch_geometric.datasets import IMDB
 from torch_geometric.datasets import Amazon, Planetoid
+import torch.nn.functional as F
 from utils import * 
 
 
@@ -192,7 +193,7 @@ def IMDb():
 
 
 def imdb_multi():
-    dataset = IMDB("../")
+    dataset = IMDB("data")
     heterodata = dataset[0]
     labels = heterodata['movie']['y']
     # heterodata = torch.load('data/IMDB/heterodata.pt')
@@ -242,11 +243,15 @@ def imdb_multi():
 
 
     features_with_labels = np.array(features[:mapping_details['node_type_to_index_map']['movie'][1]])
-    _, important_feat_ids = reduce_node_features(features_with_labels, labels, random_seed = 0)
+    features_binary = np.where(features_with_labels >= 1, 1, 0)
+
+    _, important_feat_ids = reduce_node_features(features_binary, labels, random_seed = 0)
     important_feats = features[:, important_feat_ids]
     feats_for_reconstruction = np.where(important_feats >= 1, 1, 0)
     features = csr_matrix(features)
-    return adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction
+    num_classes = labels.unique().size(0)
+    one_hot_labels = F.one_hot(labels, num_classes)
+    return adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction , one_hot_labels
 
 def acm_multi():
     
@@ -298,11 +303,14 @@ def acm_multi():
 
 
     features_with_labels = np.array(features[:mapping_details['node_type_to_index_map']['paper'][1]])
-    _, important_feat_ids = reduce_node_features(features_with_labels, labels, random_seed = 0)
+    features_binary = np.where(features_with_labels >= 1, 1, 0)
+    _, important_feat_ids = reduce_node_features(features_binary, labels, random_seed = 0)
     important_feats = features[:, important_feat_ids]
     feats_for_reconstruction = np.where(important_feats >= 1, 1, 0)
     features = csr_matrix(features)
-    return adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction
+    num_classes = labels.unique().size(0)
+    one_hot_labels = F.one_hot(labels, num_classes)
+    return adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction , one_hot_labels
 
 
 
@@ -506,12 +514,14 @@ def citeseer():
         adjacency_matrix[end_node, start_node] = 1  # For und
     
     features = ds['x'].numpy()
-    label = ds['y']
+    labels = ds['y']
     _, important_feat_ids = reduce_node_features(np.array(features), label, 0)
     important_feats = features[:, important_feat_ids]
     feats_for_reconstruction = np.where(important_feats >= 1, 1, 0)
     features = csr_matrix(features)
-    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, feats_for_reconstruction
+    num_classes = label.unique().size(0)
+    one_hot_labels = F.one_hot(label, num_classes)
+    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, feats_for_reconstruction, one_hot_labels
 
 
 def cora():
@@ -533,7 +543,9 @@ def cora():
     important_feats = features[:, important_feat_ids]
     feats_for_reconstruction = np.where(important_feats >= 1, 1, 0)
     features = csr_matrix(features)
-    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, feats_for_reconstruction
+    num_classes = label.unique().size(0)
+    one_hot_labels = F.one_hot(label, num_classes)
+    return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, feats_for_reconstruction, one_hot_labels
 
     
 
