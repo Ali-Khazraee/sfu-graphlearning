@@ -39,7 +39,7 @@ parser = argparse.ArgumentParser(description='VGAE Framework')
 parser.add_argument('-e', dest="epoch_number", type=int, default=101, help="Number of Epochs")
 parser.add_argument('-v', dest="Vis_step", type=int, default=20, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
-parser.add_argument('-dataset', dest="dataset", default="imdb-multi",
+parser.add_argument('-dataset', dest="dataset", default="cora",
                     help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM, imdb-multi, acm-multi")
 parser.add_argument('-hemogenize', dest="hemogenize", default=False, help="either withhold the layers (edges types) during training or not")
 parser.add_argument('-NofCom', dest="num_of_comunities", type=int, default=64,
@@ -103,7 +103,9 @@ synthesis_graphs = {"grid", "community", "lobster", "ego"}
 
 heterogeneous_data = ["imdb-multi", "acm-multi"]
 
-database = 'converted_imdb' #put the name of the database in this section
+database = '' #put the name of the database in this section
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # VGAE frame_work
 class GVAE_FrameWork(torch.nn.Module):
@@ -274,10 +276,10 @@ pltr = plotter.Plotter(functions=["loss", "adj_Recons Loss", "feature_Rec Loss",
 if dataset in heterogeneous_data:
     feats_for_reconstruction_count = {}
     for node_type, (start_idx, end_idx) in mapping_details['node_type_to_index_map'].items():
-        tensor_slice = torch.tensor(feats_for_reconstruction[start_idx:end_idx], dtype=torch.float32).to('cuda')
+        tensor_slice = torch.tensor(feats_for_reconstruction[start_idx:end_idx], dtype=torch.float32).to(device)
         feats_for_reconstruction_count[node_type] = tensor_slice
 else:
-    feats_for_reconstruction_count = torch.tensor(feats_for_reconstruction).to('cuda:0')
+    feats_for_reconstruction_count = torch.tensor(feats_for_reconstruction).to(device)
     
 #=================================================================
     
@@ -390,15 +392,15 @@ gt_labels[masked_indexes] = -1
 # count ground truth motif
 
 if use_motif == True:
-    rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations, prunes = setup_function(database, rule_prune, rule_weight)
+    rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations, prunes = setup_function(database, rule_prune, rule_weight, device)
     
     if mapping_details != None:
-        update_matrices(matrices, mapping_details, pre_self_loop_train_adj)
+        update_matrices(device, matrices, mapping_details, pre_self_loop_train_adj)
     else:
         key = next(iter(matrices))
-        matrices[key] = torch.tensor(pre_self_loop_train_adj[0]).to('cuda:0')
+        matrices[key] = torch.tensor(pre_self_loop_train_adj[0]).to(device)
     
-    ground_truth = iteration_function(dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations ,rule_weight, prunes , feats_for_reconstruction_count , one_hot_labe.to('cuda:0') , mode = 'ground_truth')
+    ground_truth = iteration_function(device, dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations ,rule_weight, prunes , feats_for_reconstruction_count , one_hot_labe.to(device) , mode = 'ground_truth')
 else:
     ground_truth = None
 
@@ -434,8 +436,8 @@ for epoch in range(epoch_number):
     # TODO: I need to optimize this part later
     
     if use_motif == True: 
-        reconstructed_x_slice, matrices,reconstructed_labels_m = process_reconstructed_data(dataset, heterogeneous_data, mapping_details, reconstructed_adjacency, reconstructed_x_prob, important_feat_ids, matrices,reconstructed_labels_prob)        
-        predicted = iteration_function(dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations ,rule_weight, prunes, reconstructed_x_slice, reconstructed_labels_m,  mode = 'predicted')
+        reconstructed_x_slice, matrices,reconstructed_labels_m = process_reconstructed_data(device, dataset, heterogeneous_data, mapping_details, reconstructed_adjacency, reconstructed_x_prob, important_feat_ids, matrices,reconstructed_labels_prob)        
+        predicted = iteration_function(device, dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations ,rule_weight, prunes, reconstructed_x_slice, reconstructed_labels_m,  mode = 'predicted')
     else:
         predicted = None
              
@@ -521,9 +523,9 @@ reconstructed_labels_prob =  torch.sigmoid(reconstructed_labels)
 
 
 rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations = setup_function(database, rule_prune, rule_weight)
-metric_ground_truth = iteration_function(dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations , rule_weight, prunes, reconstructed_x_slice = None , reconstructed_labels = None , mode = 'metric_ground_truth')
-reconstructed_x_slice, matrices,reconstructed_labels_m = process_reconstructed_data(dataset, heterogeneous_data, mapping_details, reconstructed_adjacency, reconstructed_x_prob, important_feat_ids, matrices,reconstructed_labels_prob)        
-metric_predicted = iteration_function(dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations , rule_weight, prunes, reconstructed_x_slice, reconstructed_labels_m ,mode = 'predicted')
+metric_ground_truth = iteration_function(device, dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations , rule_weight, prunes, reconstructed_x_slice = None , reconstructed_labels = None , mode = 'metric_ground_truth')
+reconstructed_x_slice, matrices,reconstructed_labels_m = process_reconstructed_data(device, dataset, heterogeneous_data, mapping_details, reconstructed_adjacency, reconstructed_x_prob, important_feat_ids, matrices,reconstructed_labels_prob)        
+metric_predicted = iteration_function(device, dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations , rule_weight, prunes, reconstructed_x_slice, reconstructed_labels_m ,mode = 'predicted')
 
 
 

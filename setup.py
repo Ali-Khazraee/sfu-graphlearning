@@ -9,7 +9,7 @@ import torch
 
 
 
-def setup_function(db_name, rule_prune, rule_weight):
+def setup_function(db_name, rule_prune, rule_weight, device):
     db = db_name 
     host_name = 'localhost'
     user_name = "root"
@@ -72,7 +72,7 @@ def setup_function(db_name, rule_prune, rule_weight):
         cursor_setup.execute("SELECT REFERENCED_TABLE_NAME FROM ForeignKeyColumns WHERE TABLE_NAME = '" + i[0] + "'")
         reference = cursor_setup.fetchall()
         shape = (len(entities[reference[0][0]].index), len(entities[reference[1][0]].index))
-        matrices[i[0]] = torch.zeros(shape, dtype=torch.float32, device = 'cuda')  
+        matrices[i[0]] = torch.zeros(shape, dtype=torch.float32, device = device)  
     
     
     for i in relation_tables:
@@ -286,7 +286,7 @@ def setup_function(db_name, rule_prune, rule_weight):
             values.append(pruned_value)
             
         elif rule_prune != True and rule_weight == True :
-            raise RuntimeError('Rule weighting requires rule pruning to be enabled.')
+            raise Exception('Rule weighting requires rule pruning to be enabled.')
         else:
             values.append(value)
 
@@ -316,7 +316,7 @@ def setup_function(db_name, rule_prune, rule_weight):
 
 
 
-def iteration_function(dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations,rule_weight,prunes, reconstructed_x_slice, reconstructed_labels, mode):
+def iteration_function(device, dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations,rule_weight,prunes, reconstructed_x_slice, reconstructed_labels, mode):
 
     functor_value_dict = dict()
     counter = 0
@@ -353,7 +353,7 @@ def iteration_function(dataset, heterogeneous_data, rules, multiples, states, fu
                         functor_address = nodes[table][column]
                         primary_key = keys[functor_address]
     
-                        matrix = torch.zeros((len(entities[functor_address].index), 1), device='cuda')
+                        matrix = torch.zeros((len(entities[functor_address].index), 1), device=device)
                         for entity_index in range(len(entities[functor_address][functor])):
                             functor_value = entities[functor_address][functor][entity_index]
 #                             if isinstance(table_functor_value, str):
@@ -394,7 +394,7 @@ def iteration_function(dataset, heterogeneous_data, rules, multiples, states, fu
                                     matrix = reconstructed_x_slice[:,indx].float().view(-1, 1)
                                 
                         else:
-                            matrix = reconstructed_labels[:,int(table_functor_value)].float().view(-1, 1).to('cuda:0')
+                            matrix = reconstructed_labels[:,int(table_functor_value)].float().view(-1, 1).to(device)
 
                         unmasked_matrices.append(matrix)
                     
@@ -417,9 +417,9 @@ def iteration_function(dataset, heterogeneous_data, rules, multiples, states, fu
                                 continue
     
                             if variable == mask_info[1]:
-                                matrix = torch.zeros((matrices[mask_info[0]].shape[0], 1), device='cuda')
+                                matrix = torch.zeros((matrices[mask_info[0]].shape[0], 1), device=device)
                             elif variable == mask_info[2]:
-                                matrix = torch.zeros((1, matrices[mask_info[0]].shape[1]), device='cuda')
+                                matrix = torch.zeros((1, matrices[mask_info[0]].shape[1]), device=device)
     
                             for entity_index in range(len(entities[functor_address][functor])):
                                 functor_value = entities[functor_address][functor][entity_index]
@@ -480,7 +480,7 @@ def iteration_function(dataset, heterogeneous_data, rules, multiples, states, fu
                                             matrix = reconstructed_x_slice[:,indx].view(1,-1)
                                         
                                 else:
-                                    matrix = (reconstructed_labels[:,int(table_functor_value)].view(1,-1)).to('cuda:0')
+                                    matrix = (reconstructed_labels[:,int(table_functor_value)].view(1,-1)).to(device)
                                 unmasked_matrices.append(matrix)
 
                 elif state == 2:
@@ -498,7 +498,7 @@ def iteration_function(dataset, heterogeneous_data, rules, multiples, states, fu
                         functor_value_dict[functor_value_dict_key] = matrix
 
                     else:
-                        matrix = torch.zeros_like(matrices[table_name], device='cuda')
+                        matrix = torch.zeros_like(matrices[table_name], device=device)
                         for index_relation in range(len(relations[table_name][functor])):
                             functor_value = relations[table_name][functor][index_relation]
                             if functor_value == table_functor_value:
@@ -532,7 +532,7 @@ def iteration_function(dataset, heterogeneous_data, rules, multiples, states, fu
                     stacked_matrices[k[0]] = torch.mm(stacked_matrices[k[0]], stacked_matrices[k[0] + 1])
                     stacked_matrices.pop(k[0] + 1)
                     pop_counter += 1
-                stacked_matrices[k[0]] = torch.mul(stacked_matrices[k[0]], torch.eye(len(stacked_matrices[k[0]]), device='cuda'))
+                stacked_matrices[k[0]] = torch.mul(stacked_matrices[k[0]], torch.eye(len(stacked_matrices[k[0]]), device=device))
             result = stacked_matrices[0]
 
             for k in range(1, len(stacked_matrices)):
@@ -556,7 +556,7 @@ def iteration_function(dataset, heterogeneous_data, rules, multiples, states, fu
 
 
 
-def process_reconstructed_data(dataset, heterogeneous_data, mapping_details, reconstructed_adjacency, reconstructed_x, important_feat_ids, matrices,reconstructed_labels):
+def process_reconstructed_data(device, dataset, heterogeneous_data, mapping_details, reconstructed_adjacency, reconstructed_x, important_feat_ids, matrices,reconstructed_labels):
 
     if dataset in heterogeneous_data:
         edge_encoding_to_node_types = {v: k for k, v in mapping_details['edge_type_encoding'].items()}
@@ -572,7 +572,7 @@ def process_reconstructed_data(dataset, heterogeneous_data, mapping_details, rec
             filtered_matrix = adj_matrix[src_start:src_end, dst_start:dst_end]
             filtered_reconstruct_adj.append(filtered_matrix)
         
-        filtered_reconstruct_adj_tensors = [matrix.to('cuda:0') for matrix in filtered_reconstruct_adj]
+        filtered_reconstruct_adj_tensors = [matrix.to(device) for matrix in filtered_reconstruct_adj]
         
         for filtered_matrix in filtered_reconstruct_adj_tensors:
             filtered_shape = filtered_matrix.shape 
@@ -585,7 +585,7 @@ def process_reconstructed_data(dataset, heterogeneous_data, mapping_details, rec
         reconstructed_x_splits = {}
         
         for node_type, (start_idx, end_idx) in mapping_details['node_type_to_index_map'].items():
-            reconstructed_x_splits[f"{node_type}"] = reconstructed_x[start_idx:end_idx,:].to('cuda:0')
+            reconstructed_x_splits[f"{node_type}"] = reconstructed_x[start_idx:end_idx,:].to(device)
             
         node_type_counts = {}
 
@@ -598,18 +598,18 @@ def process_reconstructed_data(dataset, heterogeneous_data, mapping_details, rec
 
         repeated_node_types = [node_type for node_type, count in node_type_counts.items() if count > 1]
         st_idx, en_idx = mapping_details['node_type_to_index_map'][repeated_node_types[0]]
-        reconstructed_labels_m = reconstructed_labels[st_idx:en_idx].to('cuda:0')
+        reconstructed_labels_m = reconstructed_labels[st_idx:en_idx].to(device)
         
     else:
-        reconstructed_x_splits = reconstructed_x.to('cuda:0')
+        reconstructed_x_splits = reconstructed_x.to(device)
         key = list(matrices.keys())[0]
-        matrices[key] = reconstructed_adjacency[0].to('cuda:0')
-        reconstructed_labels_m = reconstructed_labels.to('cuda:0')
+        matrices[key] = reconstructed_adjacency[0].to(device)
+        reconstructed_labels_m = reconstructed_labels.to(device)
 
     return reconstructed_x_splits, matrices, reconstructed_labels_m
 
 
-def update_matrices(matrices, mapping_details, pre_self_loop_train_adj):
+def update_matrices(device, matrices, mapping_details, pre_self_loop_train_adj):
     
     for i in range(len(pre_self_loop_train_adj)):
         pre_self_loop_train_adj[i] = torch.tensor(pre_self_loop_train_adj[i])
@@ -625,7 +625,7 @@ def update_matrices(matrices, mapping_details, pre_self_loop_train_adj):
             relation_number = mapping_details['edge_type_encoding'][(entity2, entity1)]
             transpose = True  
         else:
-            raise KeyError(f"No relation found for key: {key}")
+            raise Exception(f"No relation found for key: {key}")
 
         relation_index = relation_number - 1
 
@@ -641,7 +641,7 @@ def update_matrices(matrices, mapping_details, pre_self_loop_train_adj):
             sliced_matrix = sliced_matrix.T 
         
 
-        matrices[key] = sliced_matrix.to('cuda:0')
+        matrices[key] = sliced_matrix.to(device)
         
 
 
