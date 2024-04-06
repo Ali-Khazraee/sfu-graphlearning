@@ -39,7 +39,7 @@ parser = argparse.ArgumentParser(description='VGAE Framework')
 parser.add_argument('-e', dest="epoch_number", type=int, default=101, help="Number of Epochs")
 parser.add_argument('-v', dest="Vis_step", type=int, default=20, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
-parser.add_argument('-dataset', dest="dataset", default="cora",
+parser.add_argument('-dataset', dest="dataset", default="imdb-multi",
                     help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM, imdb-multi, acm-multi")
 parser.add_argument('-hemogenize', dest="hemogenize", default=False, help="either withhold the layers (edges types) during training or not")
 parser.add_argument('-NofCom', dest="num_of_comunities", type=int, default=64,
@@ -59,7 +59,7 @@ parser.add_argument('-encoder_type', dest="encoder_type", default="RGCN_Encoder"
 parser.add_argument('-num_node', dest="num_node", default=-1, type=str,
                     help="the size of subgraph which is sampled; -1 means use the whole graph; I added this feature to enable us to train on a small subset of graph to speed up Dev")
 parser.add_argument("-downstreamTasks", dest="downstreamTasks" , default= {"nodeClassification","linkPrediction"}, help="a ser of downsteam tasks", nargs='+',)
-parser.add_argument('-motif_obj', dest="motif_obj", default= True , help="adds motif_loss term to objective function")
+parser.add_argument('-motif_obj', dest="motif_obj", default= False , help="adds motif_loss term to objective function")
 parser.add_argument('-rp', dest="rule_prune",  default= True , help="Toggle rule pruning on or off")
 parser.add_argument('-rw', dest="rule_weight",  default= True , help="Toggle rule weighting on or off - If you want to use rule weighting, you need to turn on rule pruning first by setting it to True.")
 parser.add_argument('-dr', dest="devide_rec_adj",  default= False , help="This switch will divide reconstructed adjacency matrix by 1/n in every epoch")
@@ -314,14 +314,19 @@ if hemogenized != True:
 
     categorized_val_edges_pos, categorized_val_edges_neg = categorize(val_edges_poitive, val_edges_negative,
                                                                       edge_labels)
+
+    categorized_Test_edges_pos, categorized_Test_edges_neg = categorize(test_edges_positive, test_edges_negative,
+                                                                      edge_labels)
     # graph_dgl.append(dgl.from_scipy(adj_train))
 else:
     adj_train = adj_train + sp.eye(adj_train.shape[0])  # the library does not add self-loops
-    graph_dgl = dgl.from_scipy(adj_train)
+    graph_dgl = [dgl.from_scipy(adj_train)]
     adj_train = torch.tensor(adj_train.todense())  # Todo: use sparse matix
     adj_train = torch.unsqueeze(adj_train, 0)
     categorized_val_edges_pos = {1: val_edges_poitive}
     categorized_val_edges_neg = {1: val_edges_negative}
+    categorized_Test_edges_pos = {1: test_edges_positive}
+    categorized_Test_edges_neg = {1: test_edges_negative}
 
 
 
@@ -471,6 +476,8 @@ for epoch in range(epoch_number):
         reconstructed_adj = torch.sigmoid(reconstructed_adj_logit)
         utils.Link_prection_eval(categorized_val_edges_pos, categorized_val_edges_neg,
                                                             reconstructed_adj.detach().numpy(), edge_labels)
+        # utils.Link_prection_eval(categorized_Test_edges_pos, categorized_Test_edges_neg,
+        #                          reconstructed_adj.detach().numpy(), edge_labels)
         model.train()
 # save the loss plot in current dir
 pltr.save_plot("Loss_plot.png")
@@ -484,7 +491,10 @@ if "nodeClassification" in downstreamTasks:
     # pred_label = Classifier(z, label)
     pass
 
-
+# test result
+print("link prediction on test set")
+utils.Link_prection_eval(categorized_Test_edges_pos, categorized_Test_edges_neg,
+                                                            reconstructed_adj.detach().numpy(), edge_labels)
 # closeness metric 
 # TODO : I can functionalize this part of the code
 num_obs = 1  
