@@ -396,7 +396,7 @@ if use_motif == True:
         update_matrices(matrices, mapping_details, pre_self_loop_train_adj)
     else:
         key = next(iter(matrices))
-        matrices[key] = pre_self_loop_train_adj[0]
+        matrices[key] = torch.tensor(pre_self_loop_train_adj[0]).to('cuda:0')
     
     ground_truth = iteration_function(dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations ,rule_weight, prunes , feats_for_reconstruction_count , one_hot_labe.to('cuda:0') , mode = 'ground_truth')
 else:
