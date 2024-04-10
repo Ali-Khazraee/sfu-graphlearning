@@ -532,7 +532,7 @@ reconstructed_labels_prob =  torch.sigmoid(reconstructed_labels)
 
 
 
-rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations = setup_function(database, rule_prune, rule_weight)
+rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations, prunes = setup_function(database, rule_prune, rule_weight, device)
 metric_ground_truth = iteration_function(device, dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations , rule_weight, prunes, reconstructed_x_slice = None , reconstructed_labels = None , mode = 'metric_ground_truth')
 reconstructed_x_slice, matrices,reconstructed_labels_m = process_reconstructed_data(device, dataset, heterogeneous_data, mapping_details, reconstructed_adjacency, reconstructed_x_prob, important_feat_ids, matrices,reconstructed_labels_prob)        
 metric_predicted = iteration_function(device, dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations , rule_weight, prunes, reconstructed_x_slice, reconstructed_labels_m ,mode = 'predicted')
