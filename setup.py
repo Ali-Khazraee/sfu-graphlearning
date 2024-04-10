@@ -578,7 +578,7 @@ def process_reconstructed_data(device, dataset, heterogeneous_data, mapping_deta
             filtered_shape = filtered_matrix.shape 
             
             for key, matrix in matrices.items():
-                if matrix.shape == filtered_shape or matrix.t().shape == filtered_shape:
+                if matrix.shape == filtered_shape:
                     matrices[key] = filtered_matrix
                     break
                 
