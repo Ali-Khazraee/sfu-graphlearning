@@ -13,6 +13,7 @@ import networkx as nx
 from AEmodels import *
 from setup import *
 import copy
+import os
 
 np.random.seed(0)
 random.seed(0)
@@ -37,9 +38,10 @@ torch.backends.cudnn.deterministic = True
 parser = argparse.ArgumentParser(description='VGAE Framework')
 
 parser.add_argument('-e', dest="epoch_number", type=int, default=101, help="Number of Epochs")
-parser.add_argument('-v', dest="Vis_step", type=int, default=20, help="model learning rate")
+parser.add_argument('-div', dest="device",  default="cpu", help="device")
+parser.add_argument('-v', dest="Vis_step", type=int, default=100, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
-parser.add_argument('-dataset', dest="dataset", default="imdb-multi",
+parser.add_argument('-dataset', dest="dataset", default="cora",
                     help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM, imdb-multi, acm-multi")
 parser.add_argument('-hemogenize', dest="hemogenize", default=False, help="either withhold the layers (edges types) during training or not")
 parser.add_argument('-NofCom', dest="num_of_comunities", type=int, default=64,
@@ -82,6 +84,7 @@ num_of_comunities = args.num_of_comunities  # number of comunities;
 DropOut_rate = args.DropOut_rate
 batch_norm = args.batch_norm
 dataset = args.dataset  # possible choices are: cora, citeseer, karate, pubmed, DBIS
+device = args.device
 decoder = args.decoder_type
 encoder = args.encoder_type
 encoder_layers = [int(x) for x in args.encoder_layers.split()]
@@ -105,7 +108,7 @@ heterogeneous_data = ["imdb-multi", "acm-multi"]
 
 database = '' #put the name of the database in this section
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() and device=="gpu" else "cpu")
 
 # VGAE frame_work
 class GVAE_FrameWork(torch.nn.Module):
@@ -523,8 +526,31 @@ if not hemogenized:
     )
 
 
+def SaveSamples(model, computation_graph, in_features, ref_graph,ref_feature, dir,setting,  num_sam = 10):
+    generate_graph = []
+    refrence_graph = []
+    for sample_i in range(num_sam):
+        std_z, m_z, z, reconstructed_adj_logit, reconstructed_x, reconstructed_labels = model(computation_graph, in_features)
+        reconstructed_adjacency = torch.sigmoid(reconstructed_adj_logit)
+        reconstructed_x_prob = torch.sigmoid(reconstructed_x)
+        reconstructed_labels_prob = torch.sigmoid(reconstructed_labels)
+        generate_graph.append([reconstructed_adjacency.detach().numpy(), reconstructed_x_prob.detach().numpy()])
+
+    refrence_graph.append([ref_graph.detach().numpy(), ref_feature.detach().numpy()])
+
+
+    if not os.path.exists(dir):
+        os.makedirs(dir)
+    np.save(dir + setting+'_generatedGraphs_.npy', generate_graph, allow_pickle=True)
+    np.save(dir + setting+'refGraphs.npy', refrence_graph, allow_pickle=True)
+
+
 model.eval()
+dir = "GeneratedSamples/"+str(dataset)+"/"
+setting="Rule_reg" if use_motif else "Vanila"
+SaveSamples(model, graph_dgl, features,adj_train, features[:,important_feat_ids].float(), dir,setting)
 std_z, m_z, z, reconstructed_adj_logit, reconstructed_x, reconstructed_labels = model(graph_dgl, features)
+
 reconstructed_adjacency = torch.sigmoid(reconstructed_adj_logit)
 reconstructed_x_prob =   torch.sigmoid(reconstructed_x)
 reconstructed_labels_prob =  torch.sigmoid(reconstructed_labels)
