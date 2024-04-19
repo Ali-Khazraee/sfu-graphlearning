@@ -1,6 +1,4 @@
-# LLGF
-We should rename the repo name. 
-
+ 
 ## Code overview
 
 The script RuleLearning.py includes the training pipeline.
