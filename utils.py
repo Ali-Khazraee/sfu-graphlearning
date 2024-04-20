@@ -30,6 +30,23 @@ def edgeList_to_listsOfEdges(edges, ht_graph):
 
     return categorized_list
 
+def Hemogenizer(adj_matrix):
+    """
+
+    :param adj_matrix: given the numpy tesnsor, homegenize it into matix
+    :return:
+    """
+    return adj_matrix.sum(0)
+
+def descrizer(graph, threshold=.5):
+    """
+
+    :param graph: numpy array
+    :return: discretize numpy array using the threshold
+    """
+    graph[graph >= 0.5] = 1
+    graph[graph < 0.5] = 0
+    return graph
 
 def categorize(pos_edges, neg_edges, labels):
     # none-edges are assgined to label 0

@@ -11,9 +11,9 @@ import torch
 
 def setup_function(db_name, rule_prune, rule_weight, device):
     db = db_name 
-    host_name = 'localhost'
-    user_name = "root"
-    password_name = ""
+    host_name = 'database-3.cxcqxpvbnnwo.us-east-2.rds.amazonaws.com'
+    user_name = "admin"
+    password_name = "newPassword"
     connection = connect(host=host_name, user=user_name, password=password_name, db=db_name)
     cursor = connection.cursor()
     db_setup = db_name + "_setup"

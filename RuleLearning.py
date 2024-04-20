@@ -13,7 +13,9 @@ import networkx as nx
 from AEmodels import *
 from setup import *
 import copy
+import stat_rnn
 import os
+import pickle
 
 np.random.seed(0)
 random.seed(0)
@@ -37,7 +39,7 @@ torch.backends.cudnn.deterministic = True
 # modelpath
 parser = argparse.ArgumentParser(description='VGAE Framework')
 
-parser.add_argument('-e', dest="epoch_number", type=int, default=101, help="Number of Epochs")
+parser.add_argument('-e', dest="epoch_number", type=int, default=401, help="Number of Epochs")
 parser.add_argument('-div', dest="device",  default="cpu", help="device")
 parser.add_argument('-v', dest="Vis_step", type=int, default=100, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
@@ -63,7 +65,7 @@ parser.add_argument('-num_node', dest="num_node", default=-1, type=str,
 parser.add_argument("-downstreamTasks", dest="downstreamTasks" , default= {"nodeClassification","linkPrediction"}, help="a ser of downsteam tasks", nargs='+',)
 parser.add_argument('-motif_obj', dest="motif_obj", default= False , help="adds motif_loss term to objective function")
 parser.add_argument('-rp', dest="rule_prune",  default= True , help="Toggle rule pruning on or off")
-parser.add_argument('-rw', dest="rule_weight",  default= True , help="Toggle rule weighting on or off - If you want to use rule weighting, you need to turn on rule pruning first by setting it to True.")
+parser.add_argument('-rw', dest="rule_weight",  default= False , help="Toggle rule weighting on or off - If you want to use rule weighting, you need to turn on rule pruning first by setting it to True.")
 parser.add_argument('-dr', dest="devide_rec_adj",  default= False , help="This switch will divide reconstructed adjacency matrix by 1/n in every epoch")
 
 
@@ -106,7 +108,7 @@ synthesis_graphs = {"grid", "community", "lobster", "ego"}
 
 heterogeneous_data = ["imdb-multi", "acm-multi"]
 
-database = '' #put the name of the database in this section
+database = 'cora' #put the name of the database in this section
 
 device = torch.device("cuda" if torch.cuda.is_available() and device=="gpu" else "cpu")
 
@@ -525,29 +527,52 @@ if not hemogenized:
         dgl.graph((list(range(original_adj.shape[-1])), list(range(original_adj.shape[-1]))), num_nodes=original_adj.shape[-1])
     )
 
+def Hemogenizer(adj_matrix):
+        return adj_matrix.sum(0)
 
-def SaveSamples(model, computation_graph, in_features, ref_graph,ref_feature, dir,setting,  num_sam = 10):
+def generator(model, computation_graph, in_features,  num_sam = 10):
+
+    """use the sample and generate  attiributed graph"""
+
+
+
     generate_graph = []
-    refrence_graph = []
     for sample_i in range(num_sam):
         std_z, m_z, z, reconstructed_adj_logit, reconstructed_x, reconstructed_labels = model(computation_graph, in_features)
         reconstructed_adjacency = torch.sigmoid(reconstructed_adj_logit)
         reconstructed_x_prob = torch.sigmoid(reconstructed_x)
         reconstructed_labels_prob = torch.sigmoid(reconstructed_labels)
-        generate_graph.append([reconstructed_adjacency.detach().numpy(), reconstructed_x_prob.detach().numpy()])
+        graph =reconstructed_adjacency.detach().numpy()
+        graph = descrizer(graph)
+        graph = Hemogenizer(graph)
+        generate_graph.append([graph, reconstructed_x_prob.detach().numpy()])
+    return generate_graph
 
-    refrence_graph.append([ref_graph.detach().numpy(), ref_feature.detach().numpy()])
+def SaveSamples(model, computation_graph, in_features, ref_graph,ref_feature, dir,  num_sam = 10):
+    generate_graph = generator(model, computation_graph, in_features,  num_sam = 10)
+    refrence_graph = []
+
+    refrence_graph.append([Hemogenizer(ref_graph.detach().numpy()), ref_feature.detach().numpy()])
 
 
     if not os.path.exists(dir):
         os.makedirs(dir)
-    np.save(dir + setting+'_generatedGraphs_.npy', generate_graph, allow_pickle=True)
-    np.save(dir + setting+'refGraphs.npy', refrence_graph, allow_pickle=True)
+
+    # np.save(dir + setting+'_generatedGraphs_.npy', generate_graph, allow_pickle=True)
+    # np.save(dir + setting+'refGraphs.npy', refrence_graph, allow_pickle=True)
+    with open(dir + 'generatedGraphs.npy', 'wb') as file:
+        pickle.dump(generate_graph, file)
+
+    with open(dir + 'refGraphs.npy', 'wb') as file:
+        pickle.dump(refrence_graph, file)
+
+    stat_rnn.mmd_eval([stat_rnn.to_nx(G[0]) for G in generate_graph], [stat_rnn.to_nx(G[0]) for G in refrence_graph], True)
 
 
 model.eval()
-dir = "GeneratedSamples/"+str(dataset)+"/"
+dir = "GeneratedSamples/"+str(dataset)
 setting="Rule_reg" if use_motif else "Vanila"
+dir+=setting+"/"
 SaveSamples(model, graph_dgl, features,adj_train, features[:,important_feat_ids].float(), dir,setting)
 std_z, m_z, z, reconstructed_adj_logit, reconstructed_x, reconstructed_labels = model(graph_dgl, features)
 
