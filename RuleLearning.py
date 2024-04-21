@@ -43,7 +43,7 @@ parser.add_argument('-e', dest="epoch_number", type=int, default=401, help="Numb
 parser.add_argument('-div', dest="device",  default="cpu", help="device")
 parser.add_argument('-v', dest="Vis_step", type=int, default=100, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
-parser.add_argument('-dataset', dest="dataset", default="cora",
+parser.add_argument('-dataset', dest="dataset", default="imdb-multi",
                     help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM, imdb-multi, acm-multi")
 parser.add_argument('-hemogenize', dest="hemogenize", default=False, help="either withhold the layers (edges types) during training or not")
 parser.add_argument('-NofCom', dest="num_of_comunities", type=int, default=64,
@@ -108,7 +108,7 @@ synthesis_graphs = {"grid", "community", "lobster", "ego"}
 
 heterogeneous_data = ["imdb-multi", "acm-multi"]
 
-database = 'cora' #put the name of the database in this section
+database = 'imdb' #put the name of the database in this section
 
 device = torch.device("cuda" if torch.cuda.is_available() and device=="gpu" else "cpu")
 
@@ -179,11 +179,21 @@ def OptimizerVAE(pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred
     # loss for motif counting 
     
     if use_motif == True: 
-        first_concat = torch.stack(ground_truth)
-        std_dev = first_concat.std()
-        normalized_ground_truth = [t / std_dev for t in ground_truth]
-        normalized_predicted = [t / std_dev for t in predicted]
-        motif_loss = F.mse_loss(torch.stack(normalized_ground_truth), torch.stack(normalized_predicted))
+
+
+
+        zero_indices = [i for i, t in enumerate(ground_truth) if torch.any(t == 0)]
+
+        filtered_ground_truth = [g for i, g in enumerate(ground_truth) if i not in zero_indices]
+        filtered_predicted = [p for i, p in enumerate(predicted) if i not in zero_indices]
+
+        normalized_ground_truth = [torch.ones_like(t) for t in filtered_ground_truth]
+
+        normalized_predicted = [p / g for p, g in zip(filtered_predicted, filtered_ground_truth)]
+
+        mse_loss = F.mse_loss(torch.stack(normalized_ground_truth), torch.stack(normalized_predicted))
+
+        motif_loss = 0.1*(torch.log(1 + mse_loss))
     else: 
         motif_loss = 0
     
@@ -455,8 +465,8 @@ for epoch in range(epoch_number):
     z_kl, adj_reconstruction_loss,feat_loss, acc, adj_val_recons_loss, motif_loss, label_loss = OptimizerVAE(reconstructed_adj_logit, adj_train , std_z, m_z, num_nodes, pos_wight, norm,reconstructed_x,features, ground_truth, predicted, reconstructed_labels, gt_labels,  ignore_edges_inx, val_edge_idx)
     #loss = adj_reconstruction_loss + z_kl + torch.tensor(motif_loss )+ label_loss + feat_loss
     if use_motif == True : 
-        #loss = adj_reconstruction_loss+ feat_loss + z_kl + label_loss + motif_loss
-        loss = motif_loss
+        loss = adj_reconstruction_loss+ feat_loss + z_kl + label_loss + motif_loss
+        #loss = motif_loss
     else:
         loss = adj_reconstruction_loss+ feat_loss + z_kl + label_loss
     # record the loss; to be ploted
