@@ -11,7 +11,7 @@ import sys
 import rnn_mmd as mmd
 import pickle
 from scipy.linalg import eigvalsh
-
+import csv
 PRINT_TIME = False
 
 
@@ -556,26 +556,47 @@ def load_attributedGraph_list(fname,num_graph=None):
 
 if __name__ == '__main__':
 
+    dir = "/local-scratch/kiarash/LLGF_ruleLearner/sfu-graphlearning/GeneratedSamples/"
 
-    plot_the_graphs = False
+    ref_file_name = "/refGraphs.npy"
+    gen_graphs_file_name = "/generatedGraphs.npy"
 
-    gen_f = "/local-scratch/kiarash/LLGF_ruleLearner/LLFG/GeneratedSamples/cora/Vanila_generatedGraphs_.npy"
-    ref_f = "/local-scratch/kiarash/LLGF_ruleLearner/LLFG/GeneratedSamples/cora/VanilarefGraphs.npy"
+    pattern = ""
 
-    # ===============================================
+    import glob
 
-    refrence_graphs = load_attributedGraph_list(ref_f)
-    generated_graphs = load_attributedGraph_list(gen_f, 2)
+    sub_dirs = glob.glob(dir + '*', recursive=True)
+    print(sub_dirs)
+    report = []
+    for path in sub_dirs:
+        try:
+            if pattern in path:
+                # plot_the_graphs = False
 
-    Visualize = False
-    import plotter
+                gen_f = path+gen_graphs_file_name
+                ref_f = path+ref_file_name
+
+                # ===============================================
+
+                refrence_graphs = load_attributedGraph_list(ref_f)
+                generated_graphs = load_attributedGraph_list(gen_f, 11)
+
+                # Visualize = False
+                # import plotter
 
 
-    if (Visualize):
-        import plotter
+                # if (Visualize):
+                #     import plotter
+                #
+                #     for i, G in enumerate(generated_graphs[:20]):
+                #         plotter.plotG(G, "generated", file_name= "graph.png")
 
-        for i, G in enumerate(generated_graphs[:20]):
-            plotter.plotG(G, "generated", file_name= "graph.png")
+                result = mmd_eval(generated_graphs, refrence_graphs, True)
+                report.append([path+result])
+                with open(dir  + "stats_report.csv", "w") as f:
+                    writer = csv.writer(f)
+                    writer.writerows(report)
 
-    mmd_eval(generated_graphs, refrence_graphs, True)
-    print("=============================================================================")
+                print("=============================================================================")
+        except  Exception as e:
+                print(e)
