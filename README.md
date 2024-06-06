@@ -1,4 +1,4 @@
-# LLGF
+# Graph Learning With Rules
 We should rename the repo name. 
 
 ## Code overview
