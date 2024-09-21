@@ -116,7 +116,6 @@ def imdb_multi():
     features = csr_matrix(features)
     num_classes = labels.unique().size(0)
     one_hot_labels = F.one_hot(labels, num_classes)
-    features = torch.tensor(features.todense(), dtype=torch.float32)
     return adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction , one_hot_labels
 
 def acm_multi():
@@ -176,7 +175,6 @@ def acm_multi():
     features = csr_matrix(features)
     num_classes = labels.unique().size(0)
     one_hot_labels = F.one_hot(labels, num_classes)
-    features = torch.tensor(features.todense(), dtype=torch.float32)
     return adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction , one_hot_labels
 
 
@@ -208,7 +206,6 @@ def acm_homogenized():
     # Calculate number of classes and generate one-hot labels
     num_classes = label.unique().size(0)
     one_hot_labels = F.one_hot(label, num_classes)
-    features = torch.tensor(features.todense(), dtype=torch.float32)
     
     return csr_matrix(adjacency_matrix), features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, feats_for_reconstruction, one_hot_labels
 
@@ -235,7 +232,6 @@ def citeseer():
     features = csr_matrix(features)
     num_classes = label.unique().size(0)
     one_hot_labels = F.one_hot(label, num_classes)
-    features = torch.tensor(features.todense(), dtype=torch.float32)
     return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, feats_for_reconstruction, one_hot_labels
 
 
@@ -260,7 +256,6 @@ def cora():
     features = csr_matrix(features)
     num_classes = label.unique().size(0)
     one_hot_labels = F.one_hot(label, num_classes)
-    features = torch.tensor(features.todense(), dtype=torch.float32)
     return csr_matrix(adjacency_matrix),features, label, csr_matrix(adjacency_matrix), None, None, important_feat_ids, feats_for_reconstruction, one_hot_labels
 
     
