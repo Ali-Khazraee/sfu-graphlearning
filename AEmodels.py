@@ -289,3 +289,52 @@ class MapedInnerProductDecoder(torch.nn.Module):
 
 
 
+
+
+
+
+
+# VGAE frame_work
+class GVAE_FrameWork(torch.nn.Module):
+    def __init__(self, encoder, decoder, node_feat_decoder, label_decoder):
+        """
+        :param latent_dim: the dimention of each embedded node; |z| or len(z)
+        :param decoder:
+        :param encoder:
+        :param mlp_decoder: either apply an multi layer perceptorn on each decoeded embedings
+        """
+        super(GVAE_FrameWork, self).__init__()
+        # self.relation_type_param = torch.nn.ParameterList(torch.nn.Parameter(torch.Tensor(2*latent_space_dim)) for x in range(latent_space_dim))
+
+        self.decoder = decoder
+        self.encoder = encoder
+        self.node_feat_decoder = node_feat_decoder
+        self.label_decoder = label_decoder
+
+
+        # self.mlp_decoder = torch.nn.ModuleList([edge_mlp(2*latent_space_dim,[16,8,1]) for i in range(self.numb_of_rel)])
+
+    def forward(self, adj, x):
+        z, m_z, std_z = self.inference(adj, x)
+        generated_adj = self.generator(z, x)
+        generated_x = self.feat_generator(z)
+        generated_label = self.label_decoder(z)
+        return std_z, m_z, z, generated_adj, generated_x, generated_label
+
+    # inference model q(z|adj,x)
+    def inference(self, adj, x):
+        z, m_q_z, std_q_z = self.encoder(adj, x)
+        return z, m_q_z, std_q_z
+
+    # generative model p(adj|z)
+    def generator(self, z, x):
+        adj = self.decoder(z)
+        return adj
+
+    def feat_generator(self, z):
+        x = self.node_feat_decoder(z)
+        return x
+
+    def reparameterize(self, mean, std):
+        eps = torch.randn_like(std)
+        return eps.mul(std).add(mean)

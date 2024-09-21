@@ -4,12 +4,19 @@ from numpy import zeros, int64, int32, float64, float32, multiply, dot, identity
 from itertools import permutations
 from math import log
 import torch
+import numpy as np
 
 
 
 
 
-def setup_function(db_name, rule_prune, rule_weight, device):
+def setup_function(dataset, rule_prune, rule_weight, device):
+    database_name = {
+    "cora": "cora",
+    "citeseer": "citeseer",
+    "imdb-multi": "imdb",
+    "acm-multi": "acm-multi"}
+    db_name = database_name[dataset]
     db = db_name 
     host_name = 'database-3.cxcqxpvbnnwo.us-east-2.rds.amazonaws.com'
     user_name = "admin"
@@ -264,7 +271,7 @@ def setup_function(db_name, rule_prune, rule_weight, device):
                     if 2 * j[size - 4] * (log(j[size - 3]) - log(j[size - 1])) - log(j[size - 4]) > 0:
                         pruned_value.append(j)
                 else:
-                    if 2 * int(j[size - 3]) * (log(j[size - 5]) - log(j[size - 1])) - log(int(j[size - 3])) > 0:
+                    if 2 * int(j[size - 3]) * (log(j[size - 5]) - log(j[size - 1])) - log(int(j[size - 3])) > 0 :
                         pruned_value.append(j)
             values.append(pruned_value)
         elif rule_prune == True and rule_weight == True :
@@ -316,7 +323,7 @@ def setup_function(db_name, rule_prune, rule_weight, device):
 
 
 
-def iteration_function(device, dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations,rule_weight,prunes, reconstructed_x_slice, reconstructed_labels, mode):
+def iteration_function(device, dataset, args, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations,rule_weight,prunes, reconstructed_x_slice, reconstructed_labels, mode):
 
     functor_value_dict = dict()
     counter = 0
@@ -378,7 +385,7 @@ def iteration_function(device, dataset, heterogeneous_data, rules, multiples, st
                         primary_key = keys[functor_address]
                         if '_' in functor:
                             table_functor_value = int(table_functor_value)
-                            if dataset in heterogeneous_data:
+                            if args.graph_type == 'heterogeneous':
 
                                 indx = int(functor[-1])-1
                                 
@@ -444,7 +451,7 @@ def iteration_function(device, dataset, heterogeneous_data, rules, multiples, st
                             if variable == mask_info[1]:
                                 if '_' in functor:
                                     table_functor_value = int(table_functor_value)
-                                    if dataset in heterogeneous_data:
+                                    if args.graph_type == 'heterogeneous':
                                         indx = int(functor[-1])-1 
                                         if table_functor_value == 0:
                                             matrix = (1 - reconstructed_x_slice[functor_address[:-1]][:,indx].float()).view(-1, 1)
@@ -466,7 +473,7 @@ def iteration_function(device, dataset, heterogeneous_data, rules, multiples, st
                             elif variable == mask_info[2]:
                                 if '_' in functor:
                                     table_functor_value = int(table_functor_value)
-                                    if dataset in heterogeneous_data:
+                                    if args.graph_type == 'heterogeneous':
                                         indx = int(functor[-1])-1 
                                         if table_functor_value == 0:
                                             matrix = (1 - reconstructed_x_slice[functor_address[:-1]][:,indx]).view(1,-1)
@@ -556,9 +563,9 @@ def iteration_function(device, dataset, heterogeneous_data, rules, multiples, st
 
 
 
-def process_reconstructed_data(device, dataset, heterogeneous_data, mapping_details, reconstructed_adjacency, reconstructed_x, important_feat_ids, matrices,reconstructed_labels):
+def process_reconstructed_data(device, dataset, args, mapping_details, reconstructed_adjacency, reconstructed_x, important_feat_ids, matrices,reconstructed_labels):
 
-    if dataset in heterogeneous_data:
+    if args.graph_type == 'heterogeneous':
         edge_encoding_to_node_types = {v: k for k, v in mapping_details['edge_type_encoding'].items()}
         filtered_reconstruct_adj = []
         
@@ -578,9 +585,13 @@ def process_reconstructed_data(device, dataset, heterogeneous_data, mapping_deta
             filtered_shape = filtered_matrix.shape 
             
             for key, matrix in matrices.items():
-                if matrix.shape == filtered_shape:
-                    matrices[key] = filtered_matrix
-                    break
+                if matrix.shape == filtered_shape or matrix.shape == filtered_matrix.T.shape:
+                    if filtered_matrix.size() == matrices[key].size():
+                        matrices[key] = filtered_matrix.to(device)
+                    elif filtered_matrix.T.size() == matrices[key].size():
+                        matrices[key] = filtered_matrix.T.to(device)
+                    break 
+                
                 
         reconstructed_x_splits = {}
         
@@ -642,6 +653,12 @@ def update_matrices(device, matrices, mapping_details, pre_self_loop_train_adj):
         
 
         matrices[key] = sliced_matrix.to(device)
+        
+        
+def add_self_loops(matrices):
+    for i in range(len(matrices)):
+        np.fill_diagonal(matrices[i], 1)
+    return matrices
         
 
 

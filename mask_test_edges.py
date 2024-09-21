@@ -1,8 +1,11 @@
 import numpy as np
+import dgl
 import pylab as p
 import scipy.sparse as sp
 from sklearn.metrics import roc_auc_score, accuracy_score, confusion_matrix,average_precision_score
-np.random.seed(0)
+from scipy.sparse import csr_matrix
+import torch
+from utils import *
 
 def roc_auc_estimator_onGraphList(pos_edges, negative_edges, reconstructed_adj, origianl_agjacency):
     prediction = []
@@ -308,3 +311,107 @@ def mask_test_edges(adj, ignore_val_test_edges=False, ignore_self_loop=True):
         ignore_edges_inx[1].extend([i for i in range(adj.shape[0])])
     # NOTE: these edge lists only contain single direction of edge!
     return adj_train, train_edges, val_edges, val_edges_false, test_edges, test_edges_false, list(train_edges_true), train_edges_false,ignore_edges_inx, val_edge_idx
+
+
+
+
+
+
+def train_test_split(args, original_adj, node_label):
+
+    #add 0.2 to function mask_test_edges 
+    
+
+    if args.split_the_data_to_train_test and args.task == "link_prediction":
+        adj_train, _, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative, train_edges_positive, train_edges_negative, ignore_edges_inx, val_edge_idx = mask_test_edges(original_adj)
+        ignored_edges = []
+        gt_labels = mask_labelws(node_label, 0)
+    if args.split_the_data_to_train_test and args.task == "node_classification" :
+        adj_train, _, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative, train_edges_positive, train_edges_negative, ignore_edges_inx, val_edge_idx = mask_test_edges(original_adj)
+        adj_train = original_adj
+        gt_labels = mask_labels(node_label, 0.2)
+        ignored_edges = None
+
+    num_nodes = adj_train.shape[-1]
+
+    return adj_train, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative, train_edges_positive, train_edges_negative, ignore_edges_inx, val_edge_idx, gt_labels, ignored_edges, num_nodes
+
+
+
+import copy
+import numpy as np
+
+def mask_labels(node_label, mask_ratio):
+    """
+    Masks a given percentage of labels by setting them to -1.
+    
+    :param node_label: A numpy array of node labels to be masked
+    :param mask_ratio: The ratio of labels to mask (default is 20%)
+    :return: A copy of the original labels with some labels masked
+    """
+    gt_labels = copy.deepcopy(node_label)
+    num_to_mask = round(gt_labels.shape[0] * mask_ratio)
+    
+    masked_indexes = np.random.choice(gt_labels.shape[0], num_to_mask, replace=False)
+    
+    gt_labels[masked_indexes] = -1
+    
+    return gt_labels
+
+
+
+
+
+def create_dgl_graph(hemogenized, edge_labels, adj_train, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative):
+    num_obs = 1  # number of relateion; default is hemogenous dataset with one type of edge
+    if hemogenized != True:
+        edge_relType_train = edge_labels.multiply(adj_train)
+        rel_type = np.unique(edge_labels.data)
+        num_obs = len(rel_type)  # number of relateion; heterougenous setting
+    # edge_relType = edge_relType + sp.eye(adj_train.shape[-1]) * (len(np.unique(edge_relType.data)) + 1)
+        graph_dgl = []
+
+        train_matrix = []
+        pre_self_loop_train_adj = []
+        for rel_num in rel_type:
+            tm_mtrix = csr_matrix(edge_relType_train.shape)
+            tm_mtrix[edge_relType_train == (rel_num)] = 1
+            pre_self_loop_train_adj.append(tm_mtrix.todense())
+            tr_matrix = tm_mtrix + sp.eye(adj_train.shape[-1])
+            train_matrix.append(tr_matrix.todense())
+
+            graph_dgl.append(
+            dgl.graph((list(tr_matrix.nonzero()[0]), list(tr_matrix.nonzero()[1])), num_nodes=adj_train.shape[0]))
+
+        train_matrix = [torch.tensor(mtrix) for mtrix in train_matrix]
+        adj_train = torch.stack(train_matrix)
+
+    # add the self loop; ToDO: Not the best approach
+        graph_dgl.append(
+        dgl.graph((list(range(adj_train.shape[-1])), list(range(adj_train.shape[-1]))), num_nodes=adj_train.shape[-1]))
+
+        categorized_val_edges_pos, categorized_val_edges_neg = categorize(val_edges_poitive, val_edges_negative,
+                                                                      edge_labels)
+
+        categorized_Test_edges_pos, categorized_Test_edges_neg = categorize(test_edges_positive, test_edges_negative,
+                                                                      edge_labels)
+    # graph_dgl.append(dgl.from_scipy(adj_train))
+    else:
+        adj_train = adj_train + sp.eye(adj_train.shape[0])  # the library does not add self-loops
+        graph_dgl = [dgl.from_scipy(adj_train)]
+        adj_train = torch.tensor(adj_train.todense())  # Todo: use sparse matix
+        adj_train = torch.unsqueeze(adj_train, 0)
+        categorized_val_edges_pos = {1: val_edges_poitive}
+        categorized_val_edges_neg = {1: val_edges_negative}
+        categorized_Test_edges_pos = {1: test_edges_positive}
+        categorized_Test_edges_neg = {1: test_edges_negative}
+    return adj_train,graph_dgl,pre_self_loop_train_adj,categorized_val_edges_pos,categorized_val_edges_neg,categorized_Test_edges_pos,categorized_Test_edges_neg
+
+
+
+
+
+def process_data(args, hemogenized, original_adj, node_label, edge_labels):
+    adj_train, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative, train_edges_positive, train_edges_negative, ignore_edges_inx, val_edge_idx, gt_labels, ignored_edges, num_nodes  = train_test_split(args, original_adj, node_label)
+    adj_train, graph_dgl, pre_self_loop_train_adj, categorized_val_edges_pos, categorized_val_edges_neg, categorized_Test_edges_pos, categorized_Test_edges_neg = create_dgl_graph(hemogenized, edge_labels, adj_train, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative)
+    return adj_train,ignore_edges_inx,val_edge_idx,graph_dgl,pre_self_loop_train_adj,categorized_val_edges_pos,categorized_val_edges_neg,categorized_Test_edges_pos,categorized_Test_edges_neg , num_nodes, gt_labels, ignored_edges
