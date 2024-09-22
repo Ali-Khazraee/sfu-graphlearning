@@ -325,16 +325,16 @@ def train_test_split(args, original_adj, node_label):
     if args.split_the_data_to_train_test and args.task == "link_prediction":
         adj_train, _, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative, train_edges_positive, train_edges_negative, ignore_edges_inx, val_edge_idx = mask_test_edges(original_adj)
         ignored_edges = []
-        gt_labels = mask_labelws(node_label, 0)
+        gt_labels, masked_indexes = mask_labels(node_label, 0)
     if args.split_the_data_to_train_test and args.task == "node_classification" :
         adj_train, _, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative, train_edges_positive, train_edges_negative, ignore_edges_inx, val_edge_idx = mask_test_edges(original_adj)
         adj_train = original_adj
-        gt_labels = mask_labels(node_label, 0.2)
+        gt_labels, masked_indexes = mask_labels(node_label, 0.2)
         ignored_edges = None
 
     num_nodes = adj_train.shape[-1]
 
-    return adj_train, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative, train_edges_positive, train_edges_negative, ignore_edges_inx, val_edge_idx, gt_labels, ignored_edges, num_nodes
+    return adj_train, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative, train_edges_positive, train_edges_negative, ignore_edges_inx, val_edge_idx, gt_labels, ignored_edges, num_nodes, masked_indexes
 
 
 
@@ -356,7 +356,7 @@ def mask_labels(node_label, mask_ratio):
     
     gt_labels[masked_indexes] = -1
     
-    return gt_labels
+    return gt_labels , masked_indexes
 
 
 
@@ -412,6 +412,6 @@ def create_dgl_graph(hemogenized, edge_labels, adj_train, val_edges_poitive, val
 
 
 def process_data(args, hemogenized, original_adj, node_label, edge_labels):
-    adj_train, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative, train_edges_positive, train_edges_negative, ignore_edges_inx, val_edge_idx, gt_labels, ignored_edges, num_nodes  = train_test_split(args, original_adj, node_label)
+    adj_train, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative, train_edges_positive, train_edges_negative, ignore_edges_inx, val_edge_idx, gt_labels, ignored_edges, num_nodes, masked_indexes  = train_test_split(args, original_adj, node_label)
     adj_train, graph_dgl, pre_self_loop_train_adj, categorized_val_edges_pos, categorized_val_edges_neg, categorized_Test_edges_pos, categorized_Test_edges_neg = create_dgl_graph(hemogenized, edge_labels, adj_train, val_edges_poitive, val_edges_negative, test_edges_positive, test_edges_negative)
-    return adj_train,ignore_edges_inx,val_edge_idx,graph_dgl,pre_self_loop_train_adj,categorized_val_edges_pos,categorized_val_edges_neg,categorized_Test_edges_pos,categorized_Test_edges_neg , num_nodes, gt_labels, ignored_edges
+    return adj_train,ignore_edges_inx,val_edge_idx,graph_dgl,pre_self_loop_train_adj,categorized_val_edges_pos,categorized_val_edges_neg,categorized_Test_edges_pos,categorized_Test_edges_neg , num_nodes, gt_labels, ignored_edges, masked_indexes

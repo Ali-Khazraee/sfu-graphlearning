@@ -1,22 +1,10 @@
-import torch
 import time
 start_time = time.monotonic()
-import dgl
-import classification as CL
 from input_data import load_data
 from mask_test_edges import *
-import plotter
 import argparse
 from utils import *
 import utils
-import networkx as nx
-from AEmodels import *
-from setup import *
-from loss import OptimizerVAE
-import copy
-import stat_rnn
-import os
-import pickle
 from helper import *
 
 np.random.seed(0)
@@ -115,7 +103,7 @@ print('===============')
 original_adj, features, node_label, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction,feats_for_reconstruction_count, one_hot_labe = load_data(dataset, device, args)
 
 # This function consists of two separate functions: one splits the data into training and testing sets, and the other creates a DGL graph.
-adj_train, ignore_edges_inx, val_edge_idx, graph_dgl, pre_self_loop_train_adj, categorized_val_edges_pos, categorized_val_edges_neg, categorized_Test_edges_pos, categorized_Test_edges_neg, num_nodes , gt_labels, ignored_edges = process_data(args, hemogenized, original_adj, node_label, edge_labels)
+adj_train, ignore_edges_inx, val_edge_idx, graph_dgl, pre_self_loop_train_adj, categorized_val_edges_pos, categorized_val_edges_neg, categorized_Test_edges_pos, categorized_Test_edges_neg, num_nodes , gt_labels, ignored_edges, masked_indexes = process_data(args, hemogenized, original_adj, node_label, edge_labels)
 
 # TODO : need to replace this part of the code
 # # pltr = plotter.Plotter(functions=["loss", "adj_Recons Loss", "feature_Rec Loss", "KL", ])
@@ -174,7 +162,7 @@ else:
 
 
 # train model
-train_model(
+model, reconstructed_labels, reconstructed_adj = train_model(
     num_nodes,
     model,
     optimizer,
@@ -223,7 +211,7 @@ train_model(
 
 
 
-#evaluation part 
+#evaluation part
 test_label_decoder(reconstructed_labels, node_label,masked_indexes)
 
 # test result
