@@ -1,6 +1,3 @@
-
-
-
 import time
 start_time = time.monotonic()
 import torch.nn.functional as F
@@ -9,6 +6,9 @@ from collections import *
 from moldels import *
 from scipy.sparse import csr_matrix
 from visualization import *
+import torch
+import dgl
+from dgl.nn.pytorch import GraphConv
 import torch.nn as nn
 from hyperspherical_vae.distributions import VonMisesFisher
 from hyperspherical_vae.distributions import HypersphericalUniform
@@ -105,23 +105,42 @@ class GCN_Encoder(torch.nn.Module):
 
         self.q_z_std = GraphConv(layers[-1]  , latent_dim, activation=None, bias=False, weight=True)
 
-    def forward(self, adj, x):
+
+    # def forward(self, adj, x):
+    #
+    #
+    #
+    #     Z = self.GCN_layers(adj, x)
+    #
+    #
+    #
+    #     m_q_z = self.q_z_mean(adj, Z)
+    #     std_q_z = torch.relu(self.q_z_std(adj, Z)) + .0001
+    #     # m_q_z = self.q_z_mean( Z, activation= lambda a : a)
+    #     # std_q_z = torch.relu(self.q_z_std( Z, activation= lambda a : a)) + .0001
+    #
+    #     z = self.reparameterize(m_q_z, std_q_z)
+    #     return z, m_q_z, std_q_z,
+    #
+
+
+
+    def forward(self, adj_list, x):
+        adj = adj_list[0]
+
+        adj = dgl.add_self_loop(adj)
 
         Z = self.GCN_layers(adj, x)
-
-
-
         m_q_z = self.q_z_mean(adj, Z)
-        std_q_z = torch.relu(self.q_z_std(adj, Z)) + .0001
-        # m_q_z = self.q_z_mean( Z, activation= lambda a : a)
-        # std_q_z = torch.relu(self.q_z_std( Z, activation= lambda a : a)) + .0001
+        std_q_z = torch.relu(self.q_z_std(adj, Z)) + 0.0001
 
         z = self.reparameterize(m_q_z, std_q_z)
-        return z, m_q_z, std_q_z,
+        return z, m_q_z, std_q_z
 
     def reparameterize(self, mean, std):
         eps = torch.randn_like(std)
         return eps.mul(std).add(mean)
+
 
 #-------------------------------------------------------------
 
