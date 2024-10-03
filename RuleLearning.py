@@ -30,7 +30,7 @@ torch.backends.cudnn.deterministic = True
 parser = argparse.ArgumentParser(description='VGAE Framework')
 
 parser.add_argument('-e', dest="epoch_number", type=int, default=301, help="Number of Epochs")
-parser.add_argument('-div', dest="device",  default="gpu", help="device")
+parser.add_argument('-div', dest="device",  default="cuda", help="device")
 parser.add_argument('-v', dest="Vis_step", type=int, default=100, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
 parser.add_argument('-dataset', dest="dataset", default="imdb-multi",
@@ -69,41 +69,22 @@ args = parser.parse_args()
 
 # setting
 print("VGAE FRAMEWORK SETING: " + str(args))
-visulizer_step = args.Vis_step
-epoch_number = args.epoch_number
-lr = args.lr
-hemogenized = args.hemogenize
-downstreamTasks = args.downstreamTasks
-
-num_of_comunities = args.Z_dimension  # the dimention of the bottleneck
-DropOut_rate = args.DropOut_rate
-batch_norm = args.batch_norm
-dataset = args.dataset  
-decoder = args.decoder_type
-encoder = args.encoder_type
-encoder_layers = [int(x) for x in args.encoder_layers.split()]
-use_feature = args.use_feature
-use_motif = args.motif_obj
-rule_prune = args.rule_prune
-divide_ajd = args.devide_rec_adj
-rule_weight = args.rule_weight
 
 
 
-device = torch.device("cuda" if torch.cuda.is_available() and args.device =="gpu" else "cpu")
 
 print('===============')
-print(device)
+print(args.device)
 print('===============')
 
 
 
 
 # Load the data
-original_adj, features, node_label, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction,feats_for_reconstruction_count, one_hot_labe = load_data(dataset, device, args)
+original_adj, features, node_label, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction,feats_for_reconstruction_count, one_hot_labe = load_data(args)
 
 # This function consists of two separate functions: one splits the data into training and testing sets, and the other creates a DGL graph.
-adj_train, ignore_edges_inx, val_edge_idx, graph_dgl, pre_self_loop_train_adj, categorized_val_edges_pos, categorized_val_edges_neg, categorized_Test_edges_pos, categorized_Test_edges_neg, num_nodes , gt_labels, ignored_edges, masked_indexes = process_data(args, hemogenized, original_adj, node_label, edge_labels)
+adj_train, ignore_edges_inx, val_edge_idx, graph_dgl, pre_self_loop_train_adj, categorized_val_edges_pos, categorized_val_edges_neg, categorized_Test_edges_pos, categorized_Test_edges_neg, num_nodes , gt_labels, ignored_edges, masked_indexes = process_data(args, original_adj, node_label, edge_labels)
 
 # TODO : need to replace this part of the code
 # # pltr = plotter.Plotter(functions=["loss", "adj_Recons Loss", "feature_Rec Loss", "KL", ])
@@ -113,19 +94,12 @@ adj_train, ignore_edges_inx, val_edge_idx, graph_dgl, pre_self_loop_train_adj, c
 
 # initialize the model
 
-model, optimizer, pos_weight, norm = create_model_and_optimizer(
-    encoder,
-    decoder,
+model, optimizer, pos_weight, norm = create_model_and_optimizer(args,
     features,
-    num_of_comunities,
-    encoder_layers,
-    DropOut_rate,
     graph_dgl,
     adj_train,
-    batch_norm,
     feats_for_reconstruction,
     node_label,
-    lr,
     num_nodes
 )
 
@@ -138,22 +112,44 @@ model, optimizer, pos_weight, norm = create_model_and_optimizer(
 # gt_labels[masked_indexes] = -1
 
 
-
+rules = None
+multiples = None
+states = None
+functors = None
+variables = None
+nodes = None
+masks = None
+base_indices = None
+mask_indices = None 
+sort_indices = None
+stack_indices = None
+values = None
+keys = None
+indices = None
+matrices = None
+entities = None
+attributes = None
+relations = None
+prunes = None
 #============================================================'
 # count ground truth motif
 # TODO : this part of the code needs to be replaced
-if use_motif == True:
-    rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations, prunes = setup_function(dataset, rule_prune, rule_weight, device)
+if args.motif_obj == True:
+    rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations, prunes = setup_function(args)
     
     if mapping_details != None:
         self_loop_train_adj = add_self_loops(pre_self_loop_train_adj)
-        update_matrices(device, matrices, mapping_details, self_loop_train_adj)
+        update_matrices(args, matrices, mapping_details, self_loop_train_adj)
     else:
         key = next(iter(matrices))
         pre_self_loop_train_adj1 = add_self_loops(pre_self_loop_train_adj)
-        matrices[key] = torch.tensor(pre_self_loop_train_adj1[0]).to(device)
-    
-    ground_truth = iteration_function(device, dataset,args , rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations ,rule_weight, prunes , feats_for_reconstruction_count , one_hot_labe.to(device) , mode = 'ground_truth')
+        matrices[key] = torch.tensor(pre_self_loop_train_adj1[0]).to(args.device)
+
+
+    ground_truth = iteration_function(args, rules, multiples, states, functors, variables, nodes, masks,
+                    base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices,
+                    matrices, entities, attributes, relations, prunes, feats_for_reconstruction_count ,
+                        one_hot_labe.to(args.device) , mode = 'ground_truth')
 else:
     ground_truth = None
 
@@ -172,8 +168,6 @@ model, reconstructed_labels, reconstructed_adj = train_model(
     pos_weight,
     norm,
     args,
-    device,
-    dataset,
     mapping_details,
     important_feat_ids,
     matrices,
@@ -194,14 +188,12 @@ model, reconstructed_labels, reconstructed_adj = train_model(
     entities,
     attributes,
     relations,
-    rule_weight,
     prunes,
     ground_truth,
     gt_labels,
     ignore_edges_inx,
     val_edge_idx,
     plt,
-    visulizer_step,
     utils,
     categorized_val_edges_pos,
     categorized_val_edges_neg,

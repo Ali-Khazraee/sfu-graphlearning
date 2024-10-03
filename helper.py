@@ -7,46 +7,45 @@ from AEmodels import *
 from setup import *
 from loss import OptimizerVAE
 
-def create_model_and_optimizer(encoder, decoder, features, num_of_communities, encoder_layers,
-                               DropOut_rate, graph_dgl, adj_train, batch_norm,
-                               feats_for_reconstruction, node_label, lr, num_nodes):
+def create_model_and_optimizer(args, features, graph_dgl, adj_train,
+                               feats_for_reconstruction, node_label, num_nodes):
 
     # Select and create the encoder model
-    if encoder == "GCN_Encoder":
+    if args.encoder_type == "GCN_Encoder":
         encoder_model = GCN_Encoder(
             in_feature=features.shape[1],
-            latent_dim=num_of_communities,
-            layers=encoder_layers,
-            DropOut_rate=DropOut_rate
+            latent_dim=args.Z_dimension ,
+            layers=[int(x) for x in args.encoder_layers.split()],
+            DropOut_rate=args.DropOut_rate
         )
-    elif encoder == "RGCN_Encoder":
+    elif args.encoder_type == "RGCN_Encoder":
         encoder_model = RGCN_Encoder(
             in_feature=features.shape[1],
             num_relation=len(graph_dgl),
-            latent_dim=num_of_communities,
-            layers=encoder_layers,
-            DropOut_rate=DropOut_rate
+            latent_dim=args.Z_dimension ,
+            layers=[int(x) for x in args.encoder_layers.split()],
+            DropOut_rate=args.DropOut_rate
         )
     else:
         raise Exception("Sorry, this Encoder is not implemented; check the input arguments.")
 
     # Select and create the decoder model
-    if decoder == "MultiRelational_SBM":
+    if args.decoder_type == "MultiRelational_SBM":
         decoder_model = MultiRelational_SBM_decoder(
             number_of_rel=adj_train.shape[0],
-            Lambda_dim=num_of_communities,
-            in_dim=num_of_communities,
-            normalize=batch_norm,
-            DropOut_rate=DropOut_rate
+            Lambda_dim=args.Z_dimension,
+            in_dim=args.Z_dimension,
+            normalize=args.batch_norm,
+            DropOut_rate=args.DropOut_rate
         )
-    elif decoder == "InnerProductDecoder":
+    elif args.decoder_type == "InnerProductDecoder":
         decoder_model = InnerProductDecoder()
     else:
         raise Exception("Sorry, this Decoder is not implemented; check the input arguments.")
 
     # Create feature and label decoder models
-    feature_decoder_model = MLPDecoder(num_of_communities, feats_for_reconstruction.shape[1])
-    label_decoder_model = NodeClassifier(num_of_communities, np.unique(node_label).shape[0])
+    feature_decoder_model = MLPDecoder(args.Z_dimension , feats_for_reconstruction.shape[1])
+    label_decoder_model = NodeClassifier(args.Z_dimension , np.unique(node_label).shape[0])
 
     # Assemble the GVAE framework model
     model = GVAE_FrameWork(
@@ -57,7 +56,7 @@ def create_model_and_optimizer(encoder, decoder, features, num_of_communities, e
     )
 
     # Initialize the optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     # Compute pos_weight for handling class imbalance
     total_edges = adj_train.shape[0] * adj_train.shape[1] * adj_train.shape[2]
@@ -72,10 +71,10 @@ def create_model_and_optimizer(encoder, decoder, features, num_of_communities, e
 
 
 def train_model(num_nodes, model, optimizer, graph_dgl, features, adj_train, pos_weight, norm, 
-                args, device, dataset, mapping_details, important_feat_ids, matrices, rules, multiples, 
+                args, mapping_details, important_feat_ids, matrices, rules, multiples, 
                 states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, 
-                stack_indices, values, keys, indices, entities, attributes, relations, rule_weight, 
-                prunes, ground_truth, gt_labels, ignore_edges_inx, val_edge_idx, pltr, visulizer_step,
+                stack_indices, values, keys, indices, entities, attributes, relations, 
+                prunes, ground_truth, gt_labels, ignore_edges_inx, val_edge_idx, pltr,
                 utils, categorized_val_edges_pos, categorized_val_edges_neg, edge_labels):
 
     print(model)
@@ -95,15 +94,16 @@ def train_model(num_nodes, model, optimizer, graph_dgl, features, adj_train, pos
 
         if args.motif_obj:
             reconstructed_x_slice, matrices, reconstructed_labels_m = process_reconstructed_data(
-                device, dataset, args, mapping_details, reconstructed_adjacency, reconstructed_x_prob, 
+                args, mapping_details, reconstructed_adjacency, reconstructed_x_prob, 
                 important_feat_ids, matrices, reconstructed_labels_prob
             )
+
+
             predicted = iteration_function(
-                device, dataset, args, rules, multiples, states, functors, variables, nodes, masks, 
+                 args, rules, multiples, states, functors, variables, nodes, masks, 
                 base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, 
-                entities, attributes, relations, rule_weight, prunes, reconstructed_x_slice, 
-                reconstructed_labels_m, mode='predicted'
-            )
+                entities, attributes, relations, prunes, reconstructed_x_slice, 
+                reconstructed_labels_m, mode='predicted')
         else:
             predicted = None
                  
@@ -127,7 +127,7 @@ def train_model(num_nodes, model, optimizer, graph_dgl, features, adj_train, pos
         print("Motif loss: {:.5f}".format(motif_loss.item()))
 
         # Evaluate the model on the validation set and visualize the loss
-        if epoch % visulizer_step == 0:
+        if epoch % args.Vis_step == 0:
             # pltr.redraw()
             model.eval()
             reconstructed_adj = torch.sigmoid(reconstructed_adj_logit)

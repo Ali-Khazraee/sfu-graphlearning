@@ -20,7 +20,7 @@ def parse_index_file(filename):
         index.append(int(line.strip()))
     return index
 
-def load_data(dataset, device, args):
+def load_data(args):
     """the method will return adjacency matrix, node features, nodes label, edges label, and circles.
       None in case the dataset does not come with the information"""
 
@@ -28,25 +28,25 @@ def load_data(dataset, device, args):
 
 
     if args.graph_type== "heterogeneous":
-        if dataset == "acm-multi":
+        if args.dataset == "acm-multi":
             adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction, one_hot_labels = acm_multi()
-        elif dataset == "imdb-multi":
+        elif args.dataset == "imdb-multi":
             adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction, one_hot_labels = imdb_multi()
 
         # Process features for reconstruction
         feats_for_reconstruction_count = {}
         for node_type, (start_idx, end_idx) in mapping_details['node_type_to_index_map'].items():
-            tensor_slice = torch.tensor(feats_for_reconstruction[start_idx:end_idx], dtype=torch.float32).to(device)
+            tensor_slice = torch.tensor(feats_for_reconstruction[start_idx:end_idx], dtype=torch.float32).to(args.device)
             feats_for_reconstruction_count[node_type] = tensor_slice
     else:
-        if dataset == "cora":
+        if args.dataset == "cora":
             adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction, one_hot_labels = cora()
-        elif dataset == "citeseer":
+        elif args.dataset == "citeseer":
             adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction, one_hot_labels = citeseer()
-        elif dataset == "acm":
+        elif args.dataset == "acm":
             adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction, one_hot_labels = acm_homogenized()
 
-        feats_for_reconstruction_count = torch.tensor(feats_for_reconstruction).to(device)
+        feats_for_reconstruction_count = torch.tensor(feats_for_reconstruction).to(args.device)
 
     if (type(features) == np.ndarray):
         features = torch.tensor(features, dtype=torch.float32)
