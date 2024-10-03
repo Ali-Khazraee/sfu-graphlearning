@@ -48,10 +48,10 @@ def load_data(dataset, device, args):
 
         feats_for_reconstruction_count = torch.tensor(feats_for_reconstruction).to(device)
 
-        if (type(features) == np.ndarray):
-            features = torch.tensor(features, dtype=torch.float32)
-        else:
-            features = torch.tensor(features.todense(), dtype=torch.float32)
+    if (type(features) == np.ndarray):
+        features = torch.tensor(features, dtype=torch.float32)
+    else:
+        features = torch.tensor(features.todense(), dtype=torch.float32)
 
     return adj, features, labels, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction ,feats_for_reconstruction_count, one_hot_labels
 

@@ -33,7 +33,7 @@ parser.add_argument('-e', dest="epoch_number", type=int, default=301, help="Numb
 parser.add_argument('-div', dest="device",  default="gpu", help="device")
 parser.add_argument('-v', dest="Vis_step", type=int, default=100, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
-parser.add_argument('-dataset', dest="dataset", default="cora",
+parser.add_argument('-dataset', dest="dataset", default="imdb-multi",
                     help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM, imdb-multi, acm-multi")
 parser.add_argument('-hemogenize', dest="hemogenize", default=False, help="either withhold the layers (edges types) during training or not")
 parser.add_argument('-NofCom', dest="Z_dimension", type=int, default=64,
@@ -58,7 +58,7 @@ parser.add_argument('-rp', dest="rule_prune",  default= True , help="Toggle rule
 parser.add_argument('-rw', dest="rule_weight",  default= False , help="Toggle rule weighting on or off - If you want to use rule weighting, you need to turn on rule pruning first by setting it to True.")
 parser.add_argument('-dr', dest="devide_rec_adj",  default= False , help="This switch will divide reconstructed adjacency matrix by 1/n in every epoch")
 parser.add_argument('-task', dest="task", default="node_classification", help="possible choices are: node_classification, link_prediction")
-parser.add_argument('-graph_type', dest="graph_type", default="homogeneous", choices=["homogeneous", "heterogeneous"], help="Choose the graph type: homogeneous or heterogeneous")
+parser.add_argument('-graph_type', dest="graph_type", default="heterogeneous", choices=["homogeneous", "heterogeneous"], help="Choose the graph type: homogeneous or heterogeneous")
 parser.add_argument('-motif_weight', dest="motif_weight", type=float, default=0.01, help="Specify the weight for the motif loss term in the loss function")
 
 
