@@ -136,3 +136,8 @@ def test_label_decoder(node_labels_pred, gt_labels,masked_indexes):
     predicted_labels = torch.argmax(node_labels_pred, dim=1)
     get_metrices(gt_labels[masked_indexes], predicted_labels[masked_indexes].numpy())
 
+
+def add_self_loops(matrices):
+    for i in range(len(matrices)):
+        np.fill_diagonal(matrices[i], 1)
+    return matrices
