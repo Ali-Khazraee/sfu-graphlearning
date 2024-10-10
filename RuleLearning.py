@@ -33,8 +33,10 @@ parser.add_argument('-e', dest="epoch_number", type=int, default=301, help="Numb
 parser.add_argument('-div', dest="device",  default="cuda", help="device")
 parser.add_argument('-v', dest="Vis_step", type=int, default=100, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
-parser.add_argument('-dataset', dest="dataset", default="cora",
+parser.add_argument('-dataset', dest="dataset", default="imdb-multi",
                     help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM, imdb-multi, acm-multi")
+parser.add_argument('-graph_type', dest="graph_type", default="heterogeneous", choices=["homogeneous", "heterogeneous"], help="Choose the graph type: homogeneous or heterogeneous")
+
 parser.add_argument('-hemogenize', dest="hemogenize", default=False, help="either withhold the layers (edges types) during training or not")
 parser.add_argument('-NofCom', dest="Z_dimension", type=int, default=64,
                     help="Dimention of Z, i.e len(Z[0]), in the bottleNEck")
@@ -58,7 +60,6 @@ parser.add_argument('-rp', dest="rule_prune",  default= False , help="Toggle rul
 parser.add_argument('-rw', dest="rule_weight",  default= False , help="Toggle rule weighting on or off - If you want to use rule weighting, you need to turn on rule pruning first by setting it to True.")
 parser.add_argument('-dr', dest="devide_rec_adj",  default= False , help="This switch will divide reconstructed adjacency matrix by 1/n in every epoch")
 parser.add_argument('-task', dest="task", default="node_classification", help="possible choices are: node_classification, link_prediction")
-parser.add_argument('-graph_type', dest="graph_type", default="homogeneous", choices=["homogeneous", "heterogeneous"], help="Choose the graph type: homogeneous or heterogeneous")
 parser.add_argument('-motif_weight', dest="motif_weight", type=float, default=0.01, help="Specify the weight for the motif loss term in the loss function")
 
 
@@ -78,7 +79,7 @@ print(args.device)
 print('===============')
 
 
-
+# adj_train : this variable is being used in loss function
 
 # Load the data
 original_adj, features, node_label, edge_labels, circles, mapping_details, important_feat_ids, feats_for_reconstruction,feats_for_reconstruction_count, one_hot_labe = load_data(args)
@@ -90,10 +91,14 @@ adj_train, ignore_edges_inx, val_edge_idx, graph_dgl, pre_self_loop_train_adj, c
 # # pltr = plotter.Plotter(functions=["loss", "adj_Recons Loss", "feature_Rec Loss", "KL", ])
 
 
-
-
-# initialize the model
-
+motif_count_vars = {
+    "feats_for_reconstruction": feats_for_reconstruction,
+    "feats_for_reconstruction_count": feats_for_reconstruction_count,
+    "pre_self_loop_train_adj": pre_self_loop_train_adj,
+    "mapping_details": mapping_details,
+    "one_hot_labe" : one_hot_labe, 
+    "important_feat_ids":important_feat_ids
+}
 
 
 
@@ -108,7 +113,7 @@ adj_train, ignore_edges_inx, val_edge_idx, graph_dgl, pre_self_loop_train_adj, c
 # gt_labels[masked_indexes] = -1
 TM = Train_Model(num_nodes, graph_dgl, features, adj_train, args
                  , gt_labels, ignore_edges_inx, val_edge_idx, utils,
-                 categorized_val_edges_pos, categorized_val_edges_neg, edge_labels, feats_for_reconstruction, node_label, mapping_details , important_feat_ids)
+                 categorized_val_edges_pos, categorized_val_edges_neg, edge_labels, motif_count_vars["feats_for_reconstruction"], node_label,   motif_count_vars["mapping_details"] ,  motif_count_vars["important_feat_ids"])
 
 #============================================================'
 # count ground truth motif
@@ -123,7 +128,7 @@ if args.motif_obj == True:
         key = next(iter(TM.matrices))
         adj_with_self_loops = add_self_loops(pre_self_loop_train_adj)
         TM.matrices[key] = torch.tensor(adj_with_self_loops[0]).to(args.device)
-    ground_truth = TM.iteration_function(feats_for_reconstruction_count, one_hot_labe.to(args.device), mode = "ground-truth")
+    ground_truth = TM.iteration_function( motif_count_vars["feats_for_reconstruction_count"], motif_count_vars["one_hot_labe"].to(args.device), mode = "ground-truth")
 
 
 else:
