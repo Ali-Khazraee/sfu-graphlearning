@@ -33,9 +33,9 @@ parser.add_argument('-e', dest="epoch_number", type=int, default=301, help="Numb
 parser.add_argument('-div', dest="device",  default="cuda", help="device")
 parser.add_argument('-v', dest="Vis_step", type=int, default=100, help="model learning rate")
 parser.add_argument('-lr', dest="lr", type=float, default=0.001, help="number of epoch at which the error-plot is visualized and updated")
-parser.add_argument('-dataset', dest="dataset", default="imdb-multi",
+parser.add_argument('-dataset', dest="dataset", default="cora",
                     help="possible choices are: cora, citeseer, pubmed, IMDB, DBLP, ACM, imdb-multi, acm-multi")
-parser.add_argument('-graph_type', dest="graph_type", default="heterogeneous", choices=["homogeneous", "heterogeneous"], help="Choose the graph type: homogeneous or heterogeneous")
+parser.add_argument('-graph_type', dest="graph_type", default="homogeneous", choices=["homogeneous", "heterogeneous"], help="Choose the graph type: homogeneous or heterogeneous")
 
 parser.add_argument('-hemogenize', dest="hemogenize", default=False, help="either withhold the layers (edges types) during training or not")
 parser.add_argument('-NofCom', dest="Z_dimension", type=int, default=64,
@@ -101,7 +101,9 @@ motif_count_vars = {
 }
 
 
+dense_adj = original_adj.toarray()
 
+adj = [torch.from_numpy(dense_adj).to(torch.float64)]
 
 
 
@@ -115,20 +117,32 @@ TM = Train_Model(num_nodes, graph_dgl, features, adj_train, args
                  , gt_labels, ignore_edges_inx, val_edge_idx, utils,
                  categorized_val_edges_pos, categorized_val_edges_neg, edge_labels, motif_count_vars["feats_for_reconstruction"], node_label,   motif_count_vars["mapping_details"] ,  motif_count_vars["important_feat_ids"])
 
+
+
+"""
+salam erfaneh, in tike ro tarjih dadam finglish benevisam k rahat tar behet tozi bedam.
+vaghti k setup_function() az class Motif_count ejra mishe tamame variable haye morede niaz bara count sakhte mishe.
+bad az on function process_data ejra mishe va tamame moteghayer haro be formati mibare k algoritm bara zarb besh niaz dare,
+yani matrix A,X va label ha, va in khorojia be function iteration k dade mishe zarb anjam mishe. 
+(faqat in k negaran nabash matrix A khoroji nis to function doros kar mikone) 
+to fqt byd A,X va label haye train khodeto be in function bedi 
+va in k chon datasetaE k mikhai add koni homogeneous hastan pas moteghayere mapping_detail ham bayad mosavi None bezari
+dar akharam moteghayer TM.important_feat_ids neshon dahande feature haye moheme estefade shode to ghanon haas.
+inam begam matrix A byd to ye list bashe.
+age bazam moshkeli bod behem bego
+va in k alan ag mitoni ro cpu kar kon
+"""
+
+
 #============================================================'
 # count ground truth motif
 # TODO : this part of the code needs to be replaced
 if args.motif_obj == True:
     TM.setup_function()
-
-    if mapping_details != None:
-        adj_with_self_loops = add_self_loops(pre_self_loop_train_adj)
-        TM.update_matrices(mapping_details, adj_with_self_loops)
-    else:
-        key = next(iter(TM.matrices))
-        adj_with_self_loops = add_self_loops(pre_self_loop_train_adj)
-        TM.matrices[key] = torch.tensor(adj_with_self_loops[0]).to(args.device)
-    ground_truth = TM.iteration_function( motif_count_vars["feats_for_reconstruction_count"], motif_count_vars["one_hot_labe"].to(args.device), mode = "ground-truth")
+    reconstructed_x_slice, reconstructed_labels_m = TM.process_reconstructed_data(TM.mapping_details, 
+    adj, features[:,TM.important_feat_ids], TM.important_feat_ids, one_hot_labe
+)
+    ground_truth = TM.iteration_function(reconstructed_x_slice , reconstructed_labels_m, mode = "ground-truth")
 
 
 else:
