@@ -547,14 +547,16 @@ class Motif_Count:
                 # Use the relation matrix for state 2
                 matrix = self.compute_state_two(functor, table_functor_value)
                 unmasked_matrices.append(matrix)
-                functor_value_dict[functor_value_dict_key] = matrix
+                if mode == 'metric_ground_truth':
+                    functor_value_dict[functor_value_dict_key] = matrix
             elif state == 3:
                 # Compute matrix for attribute relations in state 3
                 matrix = self.compute_state_three(
                     functor, table_functor_value
                 )
                 unmasked_matrices.append(matrix)
-                functor_value_dict[functor_value_dict_key] = matrix
+                if mode == 'metric_ground_truth':
+                    functor_value_dict[functor_value_dict_key] = matrix
         return unmasked_matrices, functor_value_dict, counter, counter_c1
 
 
@@ -631,7 +633,8 @@ class Motif_Count:
                         else:
                             matrix[0, index] = 1
                 matrices_list.append(matrix)
-                functor_value_dict[functor_value_dict_key] = matrix
+                if mode == 'metric_ground_truth':
+                    functor_value_dict[functor_value_dict_key] = matrix
             else:
                 # Use reconstructed data to create the matrix
                 if variable == mask_info[1]:
