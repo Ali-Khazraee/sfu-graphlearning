@@ -142,11 +142,11 @@ if args.motif_obj == True:
     reconstructed_x_slice, reconstructed_labels_m = TM.process_reconstructed_data(TM.mapping_details, 
     adj, features[:,TM.important_feat_ids], TM.important_feat_ids, one_hot_labe
 )
-    ground_truth = TM.iteration_function(reconstructed_x_slice , reconstructed_labels_m, mode = "ground-truth")
+    observed = TM.iteration_function(reconstructed_x_slice , reconstructed_labels_m, mode = "ground-truth")
 
 
 else:
-    ground_truth = None
+    observed = None
 
 # ************************************************************
 
@@ -156,7 +156,7 @@ else:
 
 
 # train model
-model, reconstructed_labels, reconstructed_adj = TM.train(ground_truth)
+model, reconstructed_labels, reconstructed_adj = TM.train(observed)
 
 
 
@@ -256,13 +256,13 @@ utils.Link_prection_eval(categorized_Test_edges_pos, categorized_Test_edges_neg,
 
 
 # rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations, prunes = setup_function(database, rule_prune, rule_weight, device)
-# metric_ground_truth = iteration_function(device, dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations , rule_weight, prunes, reconstructed_x_slice = None , reconstructed_labels = None , mode = 'metric_ground_truth')
+# metric_observed = iteration_function(device, dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations , rule_weight, prunes, reconstructed_x_slice = None , reconstructed_labels = None , mode = 'metric_observed')
 # reconstructed_x_slice, matrices,reconstructed_labels_m = process_reconstructed_data(device, dataset, heterogeneous_data, mapping_details, reconstructed_adjacency, reconstructed_x_prob, important_feat_ids, matrices,reconstructed_labels_prob)        
 # metric_predicted = iteration_function(device, dataset, heterogeneous_data, rules, multiples, states, functors, variables, nodes, masks, base_indices, mask_indices, sort_indices, stack_indices, values, keys, indices, matrices, entities,attributes,relations , rule_weight, prunes, reconstructed_x_slice, reconstructed_labels_m ,mode = 'predicted')
 
 
 
-# closeness = torch.sqrt(F.mse_loss(torch.stack(metric_ground_truth), torch.stack(metric_predicted)))
+# closeness = torch.sqrt(F.mse_loss(torch.stack(metric_observed), torch.stack(metric_predicted)))
 
 
 

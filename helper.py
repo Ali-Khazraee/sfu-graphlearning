@@ -117,7 +117,7 @@ class Train_Model(Motif_Count):
 
 
 
-    def train(self, ground_truth):
+    def train(self, observed):
 
         # Create the model and optimizer
         self.model, self.optimizer, self.pos_weight, self.norm = self.create_model_and_optimizer()
@@ -153,7 +153,7 @@ class Train_Model(Motif_Count):
             kl_loss, adj_reconstruction_loss, feat_loss, acc, adj_val_recons_loss, motif_loss, label_loss, loss = OptimizerVAE(
                 self.args, self.important_feat_ids, reconstructed_adj_logit, self.adj_train, std_z,
                 m_z, self.num_nodes, self.pos_weight, self.norm, reconstructed_x, self.features,
-                ground_truth, predicted, reconstructed_labels, self.gt_labels,
+                observed, predicted, reconstructed_labels, self.gt_labels,
                 self.ignore_edges_inx, self.val_edge_idx
             )
 

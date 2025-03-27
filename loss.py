@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # objective Function
-def OptimizerVAE(args, important_feat_ids, pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred, x_true, ground_truth, predicted, predicted_node_labels, gt_labels, indexes_to_ignore=None, val_edge_idx=None):
+def OptimizerVAE(args, important_feat_ids, pred, labels, std_z, mean_z, num_nodes, pos_wight, norm, x_pred, x_true, observed, predicted, predicted_node_labels, gt_labels, indexes_to_ignore=None, val_edge_idx=None):
     """
     :param pred: reconstructed adj matrix by model; its a stack of dense adj matrix
     :param labels: The origianl adj matrix which shoul be reconstructed; stack of matrices
@@ -24,16 +24,16 @@ def OptimizerVAE(args, important_feat_ids, pred, labels, std_z, mean_z, num_node
 
 
 
-        zero_indices = [i for i, t in enumerate(ground_truth) if torch.any(t == 0)]
+        zero_indices = [i for i, t in enumerate(observed) if torch.any(t == 0)]
 
-        filtered_ground_truth = [g for i, g in enumerate(ground_truth) if i not in zero_indices]
+        filtered_observed = [g for i, g in enumerate(observed) if i not in zero_indices]
         filtered_predicted = [p for i, p in enumerate(predicted) if i not in zero_indices]
 
-        normalized_ground_truth = [torch.ones_like(t) for t in filtered_ground_truth]
+        normalized_observed = [torch.ones_like(t) for t in filtered_observed]
 
-        # normalized_predicted = [p / g for p, g in zip(filtered_predicted, filtered_ground_truth)]
+        # normalized_predicted = [p / g for p, g in zip(filtered_predicted, filtered_observed)]
 
-        normalized_predicted = [torch.abs((torch.log(p / g))) for p, g in zip(filtered_predicted, filtered_ground_truth)]
+        normalized_predicted = [torch.abs((torch.log(p / g))) for p, g in zip(filtered_predicted, filtered_observed)]
         
         motif_loss = (((torch.sum(torch.stack(normalized_predicted))/len((normalized_predicted)))))
     else: 

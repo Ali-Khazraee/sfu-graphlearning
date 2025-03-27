@@ -517,7 +517,7 @@ class Motif_Count:
             variable = '0'
             functor_value_dict_key = (table_functor_value, functor, variable, tuple_mask_info)
             
-            if mode == 'metric_ground_truth':
+            if mode == 'metric_observed':
                 if self.states[table][column] != 1:
                     # Use cached matrix if available
                     if functor_value_dict.get(functor_value_dict_key) is not None:
@@ -533,7 +533,7 @@ class Motif_Count:
                      functor, table_functor_value, self.nodes[table][column], reconstructed_x_slice, reconstructed_labels, mode
                 )
                 unmasked_matrices.append(matrix)
-                if mode == 'metric_ground_truth':
+                if mode == 'metric_observed':
                     functor_value_dict[functor_value_dict_key] = matrix
             elif state == 1:
                 # Compute matrices for state 1
@@ -547,7 +547,7 @@ class Motif_Count:
                 # Use the relation matrix for state 2
                 matrix = self.compute_state_two(functor, table_functor_value)
                 unmasked_matrices.append(matrix)
-                if mode == 'metric_ground_truth':
+                if mode == 'metric_observed':
                     functor_value_dict[functor_value_dict_key] = matrix
             elif state == 3:
                 # Compute matrix for attribute relations in state 3
@@ -555,7 +555,7 @@ class Motif_Count:
                     functor, table_functor_value
                 )
                 unmasked_matrices.append(matrix)
-                if mode == 'metric_ground_truth':
+                if mode == 'metric_observed':
                     functor_value_dict[functor_value_dict_key] = matrix
         return unmasked_matrices, functor_value_dict, counter, counter_c1
 
@@ -565,7 +565,7 @@ class Motif_Count:
         """
         Compute matrix for state 0, which involves unary predicates without relations.
         """
-        if mode == 'metric_ground_truth':
+        if mode == 'metric_observed':
             # Create a column vector indicating entities matching the functor value
             primary_key = self.keys[functor_address]
             matrix = torch.zeros((len(self.entities[functor_address].index), 1), device=self.args.device)
@@ -610,7 +610,7 @@ class Motif_Count:
         for mask_info in masks_list:
             tuple_mask_info = tuple(mask_info)
             functor_value_dict_key = (table_functor_value, functor, variable, tuple_mask_info)
-            if mode == 'metric_ground_truth':
+            if mode == 'metric_observed':
                 # Use cached matrix if available
                 if functor_value_dict.get(functor_value_dict_key) is not None:
                     matrix = functor_value_dict[functor_value_dict_key]
@@ -633,7 +633,7 @@ class Motif_Count:
                         else:
                             matrix[0, index] = 1
                 matrices_list.append(matrix)
-                if mode == 'metric_ground_truth':
+                if mode == 'metric_observed':
                     functor_value_dict[functor_value_dict_key] = matrix
             else:
                 # Use reconstructed data to create the matrix
