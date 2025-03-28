@@ -119,20 +119,6 @@ TM = Train_Model(num_nodes, graph_dgl, features, adj_train, args
 
 
 
-"""
-salam erfaneh, in tike ro tarjih dadam finglish benevisam k rahat tar behet tozi bedam.
-vaghti k setup_function() az class Motif_count ejra mishe tamame variable haye morede niaz bara count sakhte mishe.
-bad az on function process_data ejra mishe va tamame moteghayer haro be formati mibare k algoritm bara zarb besh niaz dare,
-yani matrix A,X va label ha, va in khorojia be function iteration k dade mishe zarb anjam mishe. 
-(faqat in k negaran nabash matrix A khoroji nis to function doros kar mikone) 
-to fqt byd A,X va label haye train khodeto be in function bedi 
-va in k chon datasetaE k mikhai add koni homogeneous hastan pas moteghayere mapping_detail ham bayad mosavi None bezari
-dar akharam moteghayer TM.important_feat_ids neshon dahande feature haye moheme estefade shode to ghanon haas.
-inam begam matrix A byd to ye list bashe.
-age bazam moshkeli bod behem bego
-va in k alan ag mitoni ro cpu kar kon
-"""
-
 
 #============================================================'
 # count ground truth motif
